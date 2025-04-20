@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Identifier, LetStatement, Program, Statement, NodeT};
+use crate::ast::{Expression, Identifier, LetStatement, NodeT, Program, ReturnStatement, Statement};
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
 
@@ -6,6 +6,7 @@ pub struct Parser {
     l: Lexer,
     cur_token: Token,
     peek_token: Token,
+    errors: Vec<String>,
 }
 
 impl Parser {
@@ -14,6 +15,7 @@ impl Parser {
             l,
             cur_token: Token::default(),
             peek_token: Token::default(),
+            errors: Vec::new(),
         };
         p.next_token();
         p.next_token();
@@ -43,6 +45,7 @@ impl Parser {
     fn parse_statement(&mut self) -> Option<Statement> {
         match self.cur_token.ttype {
             TokenType::LET => self.parse_let_statement(),
+            TokenType::RETURN => self.parse_return_statement(),
             _ => None,
         }
     }
@@ -76,6 +79,17 @@ impl Parser {
         Some(Statement::Let { ls: stmt })
     }
 
+    fn parse_return_statement(&mut self) -> Option<Statement >{
+        let mut stmt = ReturnStatement::new();
+        stmt.token = self.cur_token.clone();
+        self.next_token();
+
+        while !self.cur_token_is(TokenType::SEMICOLON) {
+            self.next_token();
+        }
+        Some(Statement::Return { r: stmt })
+    }
+
     fn cur_token_is(&self, t: TokenType) -> bool {
         self.cur_token.ttype == t
     }
@@ -88,8 +102,21 @@ impl Parser {
             self.next_token();
             true
         } else {
+            self.peek_error(t);
             false
         }
+    }
+
+    fn errors(&self) -> Vec<String> {
+        self.errors.clone()
+    }
+
+    fn peek_error(&mut self, t: TokenType) {
+        let msg = format!(
+            "Expected next token to be {:?}, got {:?} instead",
+            t, self.peek_token.ttype
+        );
+        self.errors.push(msg);
     }
 }
 
@@ -98,6 +125,19 @@ mod tests {
     use crate::ast::Statement;
 
     use super::*;
+
+    fn check_parser_errors(p: &Parser) {
+        let err_count = p.errors.len();
+        if err_count == 0 {
+            return
+        }
+
+        eprintln!("Parser has {} errors.", err_count);
+        for e in p.errors() {
+            eprintln!("parser error: {}", e);
+        }
+        panic!("Got parser errors")
+    }
 
     #[test]
     fn test_let_statements() {
@@ -110,6 +150,7 @@ let foobar = 838383;
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
+        check_parser_errors(&parser);
 
         // assert!(program.is_some(), "parse_program() returned None");
         // let program = program.unwrap();
@@ -140,7 +181,7 @@ let foobar = 838383;
         }
 
         match stmt {
-            Statement::Let{ls} => {
+            Statement::Let { ls } => {
                 if ls.name.value != expected_name {
                     eprintln!(
                         "ls.name.value not '{}'. got='{}'",
@@ -166,4 +207,44 @@ let foobar = 838383;
             }
         }
     }
+
+     #[test]
+    fn test_return_statements() {
+        let input = r#"
+return 5;
+return 10;
+return 993322;
+"#;
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+
+        assert_eq!(
+            program.statements.len(),
+            3,
+            "program.statements does not contain 3 statements. got={}",
+            program.statements.len()
+        );
+
+        for stmt in &program.statements {
+            match stmt {
+                Statement::Return{r} => {
+                    assert_eq!(
+                        r.token_literal(),
+                        "return",
+                        "r.token_literal not 'return'. got='{}'",
+                        r.token_literal()
+                    );
+                }
+                _ => {
+                    panic!(
+                        "stmt not ReturnStatement. got={:?}",
+                        stmt
+                    );
+                }
+            }
+        }
+    }
+
 }

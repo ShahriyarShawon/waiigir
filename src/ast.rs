@@ -20,12 +20,14 @@ pub enum Expression {
 
 #[derive(Debug)]
 pub enum Statement {
-    Let{ls: LetStatement}
+    Let{ls: LetStatement},
+    Return{r: ReturnStatement}
 }
 impl NodeT for Statement {
     fn token_literal(&self) -> String {
         match self {
-            Statement::Let{ls} => ls.token_literal()
+            Statement::Let{ls} => ls.token_literal(),
+            Statement::Return{r} => r.token_literal()
         }
     }
 }
@@ -33,6 +35,7 @@ impl StatementT for Statement {
     fn statement_node(&self) {
         match self {
             Statement::Let{ls} => ls.statement_node(),
+            Statement::Return{r} => r.statement_node(),
         }
     }
 }
@@ -47,7 +50,8 @@ impl NodeT for Program {
         if self.statements.len() > 0 {
             let stmt = self.statements.get(0).unwrap();
             return match stmt {
-                Statement::Let{ls} => ls.token_literal()
+                Statement::Let{ls} => ls.token_literal(),
+                Statement::Return{r} => r.token_literal()
             }
         } else {
             return String::from("");
@@ -102,6 +106,31 @@ impl LetStatement {
             token: token::Token::default(),
             name: Identifier::default(),
             value: Expression::Default
+        }
+
+    }
+}
+
+#[derive(Debug)]
+pub struct ReturnStatement {
+    pub token: Token,
+    pub return_value: Expression
+}
+
+impl StatementT for ReturnStatement {
+    fn statement_node(&self) {}
+}
+
+impl NodeT for ReturnStatement {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+}
+impl ReturnStatement {
+    pub fn new() -> ReturnStatement {
+        ReturnStatement {
+            token: token::Token::default(),
+            return_value: Expression::Default
         }
 
     }
