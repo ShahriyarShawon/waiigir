@@ -1,12 +1,19 @@
+use std::collections::HashMap;
+
 use crate::ast::{Expression, Identifier, LetStatement, NodeT, Program, ReturnStatement, Statement};
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
+
+pub type PrefixParseFn = fn() -> Expression;
+pub type InfixParseFn = fn(Expression) -> Expression;
 
 pub struct Parser {
     l: Lexer,
     cur_token: Token,
     peek_token: Token,
     errors: Vec<String>,
+    prefix_parse_fns: HashMap<TokenType, PrefixParseFn>,
+    infix_parse_fns: HashMap<TokenType, InfixParseFn>,
 }
 
 impl Parser {
@@ -16,6 +23,8 @@ impl Parser {
             cur_token: Token::default(),
             peek_token: Token::default(),
             errors: Vec::new(),
+            prefix_parse_fns: HashMap::new(),
+            infix_parse_fns: HashMap::new()
         };
         p.next_token();
         p.next_token();
