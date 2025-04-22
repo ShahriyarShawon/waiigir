@@ -196,7 +196,7 @@ impl ReturnStatement {
 #[derive(Debug)]
 pub struct ExpressionStatement {
     pub token: Token,
-    pub expression: Expression,
+    pub expression: Option<Expression>,
 }
 
 impl StatementT for ExpressionStatement {
@@ -209,14 +209,17 @@ impl NodeT for ExpressionStatement {
     }
 
     fn string(&self) -> String {
-        return self.expression.string();
+        match &self.expression {
+            Some(e) => return e.string(),
+            None => String::from("Empty Expression Statement")
+        }
     }
 }
 impl ExpressionStatement {
     pub fn new() -> ExpressionStatement {
         ExpressionStatement {
             token: token::Token::default(),
-            expression: Expression::Default,
+            expression: Some(Expression::Default),
         }
     }
 }
