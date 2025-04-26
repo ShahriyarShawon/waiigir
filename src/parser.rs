@@ -57,11 +57,16 @@ impl Parser {
         };
 
         while self.cur_token.ttype != TokenType::EOF {
-            println!("parse_program: current token type {:?}, {:?}", self.cur_token.ttype, self.cur_token.ttype == TokenType::EOF);
             let stmt = self.parse_statement();
             match stmt {
-                Some(s) => program.statements.push(s),
-                None => self.next_token(),
+                Some(s) => {
+                    // eprintln!("parse_program: pushing {:?}", s);
+                    program.statements.push(s);
+                }
+                None => {
+                    // eprintln!("NEXT TOKEN");
+                    self.next_token();
+                }
             }
         }
 
@@ -69,6 +74,9 @@ impl Parser {
     }
 
     fn parse_statement(&mut self) -> Option<Statement> {
+        if self.cur_token.ttype == TokenType::SEMICOLON{
+            return None
+        }
         match self.cur_token.ttype {
             TokenType::LET => self.parse_let_statement(),
             TokenType::RETURN => self.parse_return_statement(),
@@ -77,6 +85,7 @@ impl Parser {
     }
 
     fn parse_let_statement(&mut self) -> Option<Statement> {
+        // eprintln!("parse_let_statement:");
         let mut stmt = LetStatement {
             token: self.cur_token.clone(),
             name: Identifier::default(),
@@ -99,6 +108,7 @@ impl Parser {
         // TODO: We're skipping the expressions until we
         // encounter a semicolon
         while !self.cur_token_is(TokenType::SEMICOLON) {
+            // eprintln!("cur token is {:?}, onto the next token.", {self.cur_token.clone()});
             self.next_token();
         }
 
@@ -122,8 +132,10 @@ impl Parser {
 
         stmt.expression = self.parse_expression(Precedence::Lowest);
 
-        println!("Cur token {:?}, peek token: {:?}", self.cur_token.clone(), self.peek_token);
-        if self.cur_token_is(TokenType::SEMICOLON) {
+        if self.peek_token_is(TokenType::EOF) {
+            return None;
+        }
+        if self.peek_token_is(TokenType::SEMICOLON) {
             self.next_token();
         }
 
@@ -135,7 +147,6 @@ impl Parser {
         match prefix {
             Some(pf) => {
                 let left_exp = pf(self);
-                println!("PARSED EXPRESSION: {:?}", left_exp);
                 return Some(left_exp);
             }
             None => None,
@@ -207,7 +218,7 @@ mod tests {
         panic!("Got parser errors")
     }
 
-    // #[test]
+    #[test]
     fn test_let_statements() {
         let input = r#"
 let x = 5;
@@ -276,7 +287,7 @@ let foobar = 838383;
         }
     }
 
-    // #[test]
+    #[test]
     fn test_return_statements() {
         let input = r#"
 return 5;
