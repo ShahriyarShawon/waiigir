@@ -1,4 +1,4 @@
-use crate::token::{self, Token};
+use crate::token::{self, Token, TokenType};
 
 pub trait NodeT {
     fn token_literal(&self) -> String;
@@ -13,9 +13,12 @@ pub trait ExpressionT: NodeT {
     fn expression_node(&self);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     Identifier { id: Identifier },
+    Integer { i: IntegerLiteral },
+    Prefix { p: PrefixExpression },
+    Infix { i: InfixExpression },
     Default,
 }
 
@@ -23,6 +26,9 @@ impl Expression {
     fn string(&self) -> String {
         match self {
             Expression::Identifier { id } => id.string(),
+            Expression::Integer { i } => i.string(),
+            Expression::Prefix { p } => p.string(),
+            Expression::Infix { i } => i.string(),
             Expression::Default => String::from(""),
         }
     }
@@ -90,7 +96,7 @@ impl NodeT for Program {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Identifier {
     pub token: Token,
     pub value: String,
@@ -211,7 +217,7 @@ impl NodeT for ExpressionStatement {
     fn string(&self) -> String {
         match &self.expression {
             Some(e) => return e.string(),
-            None => String::from("Empty Expression Statement")
+            None => String::from("Empty Expression Statement"),
         }
     }
 }
@@ -224,6 +230,100 @@ impl ExpressionStatement {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct IntegerLiteral {
+    pub token: Token,
+    pub value: i64,
+}
+
+impl NodeT for IntegerLiteral {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn string(&self) -> String {
+        self.token.literal.clone()
+    }
+}
+impl ExpressionT for IntegerLiteral {
+    fn expression_node(&self) {}
+}
+
+impl IntegerLiteral {
+    pub fn new() -> IntegerLiteral {
+        IntegerLiteral {
+            token: Token::default(),
+            value: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PrefixExpression {
+    pub token: Token,
+    pub operator: String,
+    pub right: Box<Expression>,
+}
+
+impl ExpressionT for PrefixExpression {
+    fn expression_node(&self) {}
+}
+impl NodeT for PrefixExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::from("");
+
+        out += "(";
+        out += self.operator.as_str();
+        out += self.right.string().as_str();
+        out += ")";
+
+        return out;
+    }
+}
+impl PrefixExpression {
+    pub fn new(token: Token, operator: String, right: Box<Expression>) -> Self {
+        Self {
+            token,
+            operator,
+            right,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct InfixExpression {
+    pub token: Token,
+    pub left: Box<Expression>,
+    pub operator: String,
+    pub right: Box<Expression>,
+}
+
+impl ExpressionT for InfixExpression {
+    fn expression_node(&self) {}
+}
+
+impl NodeT for InfixExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::from("(");
+        out += self.left.string().as_str();
+        out += " ";
+        out += self.operator.as_str();
+        out += " ";
+        out += self.right.string().as_str();
+        out += ")";
+
+        out
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -232,8 +332,8 @@ mod tests {
     #[test]
     fn test_string() {
         let program = Program {
-            statements: vec![
-                Statement::Let{ls: LetStatement {
+            statements: vec![Statement::Let {
+                ls: LetStatement {
                     token: Token {
                         ttype: TokenType::LET,
                         literal: "let".to_string(),
@@ -245,15 +345,17 @@ mod tests {
                         },
                         value: "myVar".to_string(),
                     },
-                    value: Expression::Identifier{id: Identifier {
-                        token: Token {
-                            ttype: TokenType::IDENT,
-                            literal: "anotherVar".to_string(),
+                    value: Expression::Identifier {
+                        id: Identifier {
+                            token: Token {
+                                ttype: TokenType::IDENT,
+                                literal: "anotherVar".to_string(),
+                            },
+                            value: "anotherVar".to_string(),
                         },
-                        value: "anotherVar".to_string(),
-                    }},
-                }},
-            ],
+                    },
+                },
+            }],
         };
 
         let expected = "let myVar = anotherVar;";
