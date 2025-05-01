@@ -19,6 +19,7 @@ pub enum Expression {
     Integer { i: IntegerLiteral },
     Prefix { p: PrefixExpression },
     Infix { i: InfixExpression },
+    Boolean {b: BooleanExpression},
     Default,
 }
 
@@ -29,6 +30,7 @@ impl Expression {
             Expression::Integer { i } => i.string(),
             Expression::Prefix { p } => p.string(),
             Expression::Infix { i } => i.string(),
+            Expression::Boolean{ b } => b.string(),
             Expression::Default => String::from(""),
         }
     }
@@ -322,6 +324,26 @@ impl NodeT for InfixExpression {
 
         out
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct BooleanExpression {
+    pub token: Token,
+    pub value: bool,
+}
+
+impl NodeT for BooleanExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn string(&self) -> String {
+        self.token.literal.clone()
+    }
+}
+
+impl ExpressionT for BooleanExpression {
+    fn expression_node(&self) {}
 }
 
 #[cfg(test)]
