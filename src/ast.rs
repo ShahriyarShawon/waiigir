@@ -19,7 +19,8 @@ pub enum Expression {
     Integer { i: IntegerLiteral },
     Prefix { p: PrefixExpression },
     Infix { i: InfixExpression },
-    Boolean {b: BooleanExpression},
+    Boolean { b: BooleanExpression },
+    IfElse { ie: IfExpression},
     Default,
 }
 
@@ -30,13 +31,14 @@ impl Expression {
             Expression::Integer { i } => i.string(),
             Expression::Prefix { p } => p.string(),
             Expression::Infix { i } => i.string(),
-            Expression::Boolean{ b } => b.string(),
+            Expression::Boolean { b } => b.string(),
+            Expression::IfElse{ ie } => ie.string(),
             Expression::Default => String::from(""),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Statement {
     Let { ls: LetStatement },
     Return { r: ReturnStatement },
@@ -127,7 +129,7 @@ impl Identifier {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LetStatement {
     pub token: token::Token,
     pub name: Identifier,
@@ -166,7 +168,7 @@ impl LetStatement {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReturnStatement {
     pub token: Token,
     pub return_value: Expression,
@@ -201,7 +203,7 @@ impl ReturnStatement {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExpressionStatement {
     pub token: Token,
     pub expression: Option<Expression>,
@@ -344,6 +346,64 @@ impl NodeT for BooleanExpression {
 
 impl ExpressionT for BooleanExpression {
     fn expression_node(&self) {}
+}
+
+#[derive(Debug, Clone)]
+pub struct IfExpression {
+    pub token: Token,
+    pub condition: Box<Expression>,
+    pub consequence: Option<BlockStatement>,
+    pub alternative: Option<BlockStatement>,
+}
+
+impl NodeT for IfExpression {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::new();
+
+        out += "if ";
+        out += self.condition.string().as_str();
+        out += " ";
+        out += self.consequence.as_ref().unwrap().string().as_str();
+
+        if self.alternative.is_some() {
+            out += "else ";
+            out += self.alternative.as_ref().unwrap().string().as_str();
+        }
+
+        return out;
+    }
+}
+impl ExpressionT for IfExpression {
+    fn expression_node(&self) {
+        todo!()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BlockStatement {
+    pub token: Token,
+    pub statements: Vec<Statement>,
+}
+
+impl NodeT for BlockStatement {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::new();
+        for s in &self.statements {
+            out += s.string().as_str()
+        }
+        return out;
+    }
+}
+impl StatementT for BlockStatement {
+    fn statement_node(&self) {}
 }
 
 #[cfg(test)]

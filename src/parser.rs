@@ -1,6 +1,5 @@
 use crate::ast::{
-    BooleanExpression, Expression, ExpressionStatement, Identifier, InfixExpression,
-    IntegerLiteral, LetStatement, NodeT, PrefixExpression, Program, ReturnStatement, Statement,
+    BlockStatement, BooleanExpression, Expression, ExpressionStatement, Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement, NodeT, PrefixExpression, Program, ReturnStatement, Statement
 };
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
@@ -165,6 +164,7 @@ impl Parser {
             TokenType::TRUE | TokenType::FALSE => self.parse_boolean(),
             TokenType::BANG | TokenType::MINUS => self.parse_prefix_expression(),
             TokenType::LPAREN => self.parse_grouped_expression(),
+            TokenType::IF => self.parse_if_expression(),
             _ => {
                 self.no_prefix_parse_fn_error(self.cur_token.ttype);
                 self.next_token();
@@ -252,9 +252,56 @@ impl Parser {
         self.next_token();
         let exp = self.parse_expression(Precedence::Lowest);
         if !self.expect_peek(TokenType::RPAREN) {
+            return None;
+        }
+        return exp;
+    }
+
+    fn parse_if_expression(&mut self) -> Option<Expression> {
+        let mut expression = IfExpression{
+            token: self.cur_token.clone(),
+            condition: Box::new(Expression::Default),
+            consequence: None,
+            alternative: None,
+        };
+
+        if !self.expect_peek(TokenType::LPAREN) {
             return None
         }
-        return exp
+
+        self.next_token();
+        expression.condition = Box::new(self.parse_expression(Precedence::Lowest).unwrap());
+
+        if !self.expect_peek(TokenType::RPAREN) {
+            return None
+
+        }
+        if !self.expect_peek(TokenType::LBRACE) {
+            return None
+        }
+
+        expression.consequence = self.parse_block_statement();
+
+        return Some(Expression::IfElse { ie: (expression) })
+    }
+
+    fn parse_block_statement(&mut self) -> Option<BlockStatement> {
+        let mut block = BlockStatement {
+            token: self.cur_token.clone(),
+            statements: Vec::new()
+        };
+
+        self.next_token();
+
+        while !self.cur_token_is(TokenType::RBRACE) && !self.cur_token_is(TokenType::EOF) {
+            let stmt = self.parse_statement();
+            if stmt.is_some() {
+                block.statements.push(stmt.unwrap());
+            }
+            self.next_token();
+        }
+
+        Some(block)
     }
 
     fn parse_identifier(&self) -> Option<Expression> {
@@ -816,5 +863,63 @@ return 993322;
                 other => panic!("exp not BooleanLiteral. got={:?}", other),
             }
         }
+    }
+    #[test]
+    fn test_if_expression() {
+        let input = "if (x < y) { x }";
+
+        let l = Lexer::new(input);
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+
+        check_parser_errors(&p);
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program.Statements does not contain 1 statement. got={}",
+            program.statements.len()
+        );
+
+        let stmt = match &program.statements[0] {
+            Statement::Expression { e } => e,
+            s => panic!(
+                "program.Statements[0] is not ExpressionStatement. got={:?}",
+                s
+            ),
+        };
+
+        let exp = match &stmt.expression {
+            Some(Expression::IfElse { ie }) => ie,
+            e => panic!("stmt.Expression is not IfExpression. got={:?}", e),
+        };
+
+        assert!(
+            test_infix_expression(&exp.condition, &"x", "<", &"y"),
+            "Condition expression did not match"
+        );
+
+        assert_eq!(
+            exp.consequence.as_ref().unwrap().statements.len(),
+            1,
+            "consequence is not 1 statement. got={}",
+            exp.consequence.as_ref().unwrap().statements.len()
+        );
+
+        let consequence_stmt = match &exp.consequence.as_ref().unwrap().statements[0] {
+            Statement::Expression { e } => e,
+            s => panic!("Statements[0] is not ExpressionStatement. got={:?}", s),
+        };
+
+        assert!(
+            test_identifier(&consequence_stmt.expression.as_ref().unwrap(), "x"),
+            "Expected identifier `x` in consequence"
+        );
+
+        assert!(
+            exp.alternative.is_none(),
+            "exp.Alternative was not None. got={:?}",
+            exp.alternative
+        );
     }
 }
