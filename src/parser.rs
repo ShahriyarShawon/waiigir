@@ -164,6 +164,7 @@ impl Parser {
             TokenType::INT => self.parse_integer_literal(),
             TokenType::TRUE | TokenType::FALSE => self.parse_boolean(),
             TokenType::BANG | TokenType::MINUS => self.parse_prefix_expression(),
+            TokenType::LPAREN => self.parse_grouped_expression(),
             _ => {
                 self.no_prefix_parse_fn_error(self.cur_token.ttype);
                 self.next_token();
@@ -232,7 +233,6 @@ impl Parser {
     }
 
     fn parse_infix_expression(&mut self, left: Expression) -> Option<Expression> {
-        eprintln!("I shoyld have been called");
         let mut expression = InfixExpression {
             token: self.cur_token.clone(),
             operator: self.cur_token.literal.clone(),
@@ -244,9 +244,17 @@ impl Parser {
         self.next_token();
         // this may be unsafe??
         let e = self.parse_expression(precedence);
-        eprintln!("This is e: {:?}", e);
         expression.right = Box::new(e.unwrap());
         return Some(Expression::Infix { i: expression });
+    }
+
+    fn parse_grouped_expression(&mut self) -> Option<Expression> {
+        self.next_token();
+        let exp = self.parse_expression(Precedence::Lowest);
+        if !self.expect_peek(TokenType::RPAREN) {
+            return None
+        }
+        return exp
     }
 
     fn parse_identifier(&self) -> Option<Expression> {
@@ -751,6 +759,11 @@ return 993322;
                 "3 + 4 * 5 == 3 * 1 + 4 * 5",
                 "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
             ),
+            ("1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"),
+            ("(5 + 5) * 2", "((5 + 5) * 2)"),
+            ("2 / (5 + 5)", "(2 / (5 + 5))"),
+            ("-(5 + 5)", "(-(5 + 5))"),
+            ("!(true == true)", "(!(true == true))"),
         ];
 
         for (input, expected) in tests {
