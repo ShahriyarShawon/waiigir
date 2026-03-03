@@ -1,9 +1,28 @@
-use crate::ast::ReturnStatement;
+use std::fmt::format;
+
 use crate::TokenType;
 use crate::ast;
+use crate::ast::ExpressionStatement;
+use crate::ast::IdentifierExpression;
+use crate::ast::IntegerLiteral;
 use crate::ast::LetStatement;
+use crate::ast::ReturnStatement;
 use crate::lexer;
 use crate::token;
+
+type prefix_parse_fn = fn(&mut Parser) -> Option<ast::Expression>;
+type infix_parse_fn = fn(&mut Parser, ast::Expression) -> Option<ast::Expression>;
+
+#[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
+pub enum Precedence {
+    LOWEST,
+    EQUALS,      // ==
+    LESSGREATER, // > or
+    SUM,         // +
+    PRODUCT,     // *
+    PREFIX,      // -X or !X
+    CALL,        // myFunction(X)
+}
 
 #[allow(dead_code)]
 #[derive(Debug, Default)]
@@ -58,9 +77,12 @@ impl Parser {
             },
             token::TokenType::RETURN => match self.parse_return_statement() {
                 Some(rs) => Some(ast::Statement::Return(rs)),
-                None => None
-            }
-            _ => None,
+                None => None,
+            },
+            _ => match self.parse_expression_statement() {
+                Some(es) => Some(ast::Statement::Expression(es)),
+                None => None,
+            },
         }
     }
 
@@ -89,7 +111,7 @@ impl Parser {
     fn parse_return_statement(&mut self) -> Option<ReturnStatement> {
         let stmt = ast::ReturnStatement {
             token: self.cur_token.clone(),
-            return_value: None
+            return_value: None,
         };
 
         self.next_token();
@@ -99,6 +121,57 @@ impl Parser {
         }
 
         Some(stmt)
+    }
+
+    fn parse_expression_statement(&mut self) -> Option<ExpressionStatement> {
+        let mut stmt = ExpressionStatement {
+            token: self.cur_token.clone(),
+            ..Default::default()
+        };
+
+        stmt.expression = self.parse_expression(Precedence::LOWEST);
+        if self.peek_token_is(&TokenType::SEMICOLON) {
+            self.next_token();
+        }
+
+        Some(stmt)
+    }
+
+    fn parse_expression(&mut self, precendence: Precedence) -> Option<ast::Expression> {
+        let prefix = match self.prefix_parse_fns(&self.cur_token.token_type) {
+            Some(p) => p,
+            None => return None,
+        };
+
+        let left_exp = prefix(self);
+        return left_exp;
+    }
+
+    fn parse_identifier(&mut self) -> Option<ast::Expression> {
+        return Some(ast::Expression::Identifier(IdentifierExpression {
+            token: self.cur_token.clone(),
+            value: self.cur_token.literal.clone(),
+        }));
+    }
+
+    fn parse_integer_literal(&mut self) -> Option<ast::Expression> {
+        let mut lit = ast::IntegerLiteral {
+            token: self.cur_token.clone(),
+            ..Default::default()
+        };
+
+        let value = match lit.token.literal.parse::<i64>() {
+           Ok(v) => v,
+           Err(_) => {
+               let msg = format!("could not parse {} as integer", lit.token.literal);
+               self.errors.push(msg);
+               return None
+           }
+        };
+
+        lit.value = value;
+
+        Some(ast::Expression::Integer(lit))
     }
 
     fn cur_token_is(&mut self, t: TokenType) -> bool {
@@ -126,6 +199,17 @@ impl Parser {
         );
         self.errors.push(msg);
     }
+
+    fn prefix_parse_fns(&self, t: &TokenType) -> Option<prefix_parse_fn> {
+        match t {
+            TokenType::IDENT => Some(Parser::parse_identifier),
+            TokenType::INT=> Some(Parser::parse_integer_literal),
+            _ => None,
+        }
+    }
+    fn infix_parse_fns(&self, t: &TokenType) -> Option<infix_parse_fn> {
+        todo!()
+    }
 }
 
 #[cfg(test)]
@@ -135,6 +219,18 @@ mod tests {
     use super::*;
     use crate::ast::Statement;
     use crate::lexer::Lexer;
+
+    fn check_parser_errors(p: &Parser) {
+        if p.errors.len() == 0 {
+            return;
+        }
+
+        eprintln!("Parser has {} errors", p.errors.len());
+        for e in &p.errors {
+            eprintln!("parser error: {}", e);
+        }
+        // panic!("Parser had errors");
+    }
 
     fn test_let_statement(s: &Statement, name: &str) -> bool {
         if s.token_literal() != "let" {
@@ -235,15 +331,95 @@ return 993322;
         }
     }
 
-    fn check_parser_errors(p: &Parser) {
-        if p.errors.len() == 0 {
-            return;
-        }
+    #[test]
+    fn test_identifier_expression() {
+        let input = "foobar;";
 
-        eprintln!("Parser has {} errors", p.errors.len());
-        for e in &p.errors {
-            eprintln!("parser error: {}", e);
-        }
-        // panic!("Parser had errors");
+        let l = Lexer::new(input);
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+
+        check_parser_errors(&p);
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program has not enough statements, got={}",
+            program.statements.len()
+        );
+
+        let stmt = match &program.statements[0] {
+            Statement::Expression(es) => es,
+            _ => panic!(
+                "program.statements[0] is not an ExpressionStatement, got={:?}",
+                program.statements[0]
+            ),
+        };
+
+        let ident = match &stmt.expression {
+            Some(ast::Expression::Identifier(i)) => i,
+            _ => panic!(
+                "stmt.expression is not an Identifier, got={:?}",
+                stmt.expression
+            ),
+        };
+
+        assert_eq!(
+            ident.value, "foobar",
+            "ident.value not 'foobar', got={}",
+            ident.value
+        );
+
+        assert_eq!(
+            ident.token.literal, "foobar",
+            "ident.token_literal not 'foobar', got={}",
+            ident.token.literal
+        );
+    }
+
+    #[test]
+    fn test_integer_literal_expression() {
+        let input = "5;";
+
+        let l = Lexer::new(input);
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+
+        check_parser_errors(&p);
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program has not enough statements, got={}",
+            program.statements.len()
+        );
+
+        let stmt = match &program.statements[0] {
+            Statement::Expression(es) => es,
+            _ => panic!(
+                "program.statements[0] is not an ExpressionStatement, got={:?}",
+                program.statements[0]
+            ),
+        };
+
+        let literal = match &stmt.expression {
+            Some(ast::Expression::Integer(il)) => il,
+            _ => panic!(
+                "stmt.expression is not an IntegerLiteral, got={:?}",
+                stmt.expression
+            ),
+        };
+
+        assert_eq!(
+            literal.value, 5,
+            "literal.value not 5, got={}",
+            literal.value
+        );
+
+        assert_eq!(
+            literal.token.literal, "5",
+            "literal.token.literal not '5', got={}",
+            literal.token.literal
+        );
     }
 }

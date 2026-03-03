@@ -64,7 +64,7 @@ impl Node for Statement {
 
                 out
             }
-            Statement::Expression(s) => match &s.return_value {
+            Statement::Expression(s) => match &s.expression {
                 Some(thing) => thing.to_string(),
                 None => String::new(),
             },
@@ -91,14 +91,15 @@ pub struct ReturnStatement {
 #[derive(Debug, Default)]
 pub struct ExpressionStatement {
     pub token: token::Token,
-    pub return_value: Option<Expression>,
+    pub expression: Option<Expression>,
 }
 
 #[derive(Debug, Default)]
 pub enum Expression {
     #[default]
     Default,
-    Identifier(IdentifierExpression)
+    Identifier(IdentifierExpression),
+    Integer(IntegerLiteral)
 }
 
 #[allow(dead_code)]
@@ -143,6 +144,27 @@ impl Node for IdentifierExpression {
         self.value.clone()
     }
 }
+
+
+#[allow(dead_code)]
+#[derive(Debug, Default)]
+pub struct IntegerLiteral {
+    pub token: token::Token,
+    pub value: i64,
+}
+
+#[allow(dead_code)]
+impl Node for IntegerLiteral {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+
+    fn to_string(&self) -> String {
+        self.token.literal.clone()
+    }
+}
+
+
 
 #[test]
 fn test_string() {
