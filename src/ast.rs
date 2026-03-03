@@ -99,7 +99,9 @@ pub enum Expression {
     #[default]
     Default,
     Identifier(IdentifierExpression),
-    Integer(IntegerLiteral)
+    Integer(IntegerLiteral),
+    Prefix(PrefixExpression),
+    Infix(InfixExpression)
 }
 
 #[allow(dead_code)]
@@ -111,6 +113,9 @@ impl Node for Expression {
     fn to_string(&self) -> String {
         match self {
             Expression::Identifier(ie) => return ie.value.clone(),
+            Expression::Integer(ie) => return ie.to_string(),
+            Expression::Prefix(pe) => return pe.to_string(),
+            Expression::Infix(ie) => return ie.to_string(),
             _ => todo!()
         }
     }
@@ -145,6 +150,48 @@ impl Node for IdentifierExpression {
     }
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Default)]
+pub struct PrefixExpression {
+    pub token: token::Token,
+    pub operator: String,
+    pub right: Box<Expression>
+}
+
+#[allow(dead_code)]
+impl Node for PrefixExpression {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+
+    fn to_string(&self) -> String {
+        let mut out = String::new();
+        out += &format!("({}{})", self.operator, self.right.to_string());
+        out
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Default)]
+pub struct InfixExpression {
+    pub token: token::Token,
+    pub left: Box<Expression>,
+    pub operator: String,
+    pub right: Box<Expression>
+}
+
+#[allow(dead_code)]
+impl Node for InfixExpression {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+
+    fn to_string(&self) -> String {
+        let mut out = String::new();
+        out += &format!("({} {} {})", self.left.to_string(), self.operator, self.right.to_string());
+        out
+    }
+}
 
 #[allow(dead_code)]
 #[derive(Debug, Default)]

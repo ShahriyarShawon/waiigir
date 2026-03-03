@@ -1,10 +1,7 @@
-use std::fmt::format;
-
 use crate::TokenType;
 use crate::ast;
 use crate::ast::ExpressionStatement;
 use crate::ast::IdentifierExpression;
-use crate::ast::IntegerLiteral;
 use crate::ast::LetStatement;
 use crate::ast::ReturnStatement;
 use crate::lexer;
@@ -22,6 +19,16 @@ pub enum Precedence {
     PRODUCT,     // *
     PREFIX,      // -X or !X
     CALL,        // myFunction(X)
+}
+
+fn precedences(t: &TokenType) -> Option<Precedence> {
+    match t {
+        TokenType::EQ | TokenType::NOT_EQ => Some(Precedence::EQUALS),
+        TokenType::LT | TokenType::GT => Some(Precedence::LESSGREATER),
+        TokenType::PLUS | TokenType::MINUS => Some(Precedence::SUM),
+        TokenType::SLASH | TokenType::ASTERISK => Some(Precedence::PRODUCT),
+        _ => None,
+    }
 }
 
 #[allow(dead_code)]
@@ -140,10 +147,24 @@ impl Parser {
     fn parse_expression(&mut self, precendence: Precedence) -> Option<ast::Expression> {
         let prefix = match self.prefix_parse_fns(&self.cur_token.token_type) {
             Some(p) => p,
-            None => return None,
+            None => {
+                self.no_prefix_parse_fn_error(self.cur_token.token_type.clone());
+                return None;
+            }
         };
 
-        let left_exp = prefix(self);
+        let mut left_exp = prefix(self);
+
+        while !self.peek_token_is(&TokenType::SEMICOLON) && precendence < self.peek_precedence() {
+            let infix = match self.infix_parse_fns(&self.peek_token.token_type) {
+                Some(i) => i,
+                None => return left_exp,
+            };
+
+            self.next_token();
+            left_exp = infix(self, left_exp.expect("I HOPE SO"));
+        }
+
         return left_exp;
     }
 
@@ -161,17 +182,49 @@ impl Parser {
         };
 
         let value = match lit.token.literal.parse::<i64>() {
-           Ok(v) => v,
-           Err(_) => {
-               let msg = format!("could not parse {} as integer", lit.token.literal);
-               self.errors.push(msg);
-               return None
-           }
+            Ok(v) => v,
+            Err(_) => {
+                let msg = format!("could not parse {} as integer", lit.token.literal);
+                self.errors.push(msg);
+                return None;
+            }
         };
 
         lit.value = value;
 
         Some(ast::Expression::Integer(lit))
+    }
+
+    fn parse_prefix_expression(&mut self) -> Option<ast::Expression> {
+        let mut expression = ast::PrefixExpression {
+            token: self.cur_token.clone(),
+            operator: self.cur_token.literal.clone(),
+            ..Default::default()
+        };
+
+        self.next_token();
+
+        expression.right = Box::new(
+            self.parse_expression(Precedence::PREFIX)
+                .expect("damn, you fucked up"),
+        );
+
+        Some(ast::Expression::Prefix(expression))
+    }
+
+    fn parse_infix_expression(&mut self, left: ast::Expression) -> Option<ast::Expression> {
+        let mut expression = ast::InfixExpression {
+            token: self.cur_token.clone(),
+            operator: self.cur_token.literal.clone(),
+            left: Box::new(left),
+            ..Default::default()
+        };
+
+        let precendence = self.cur_precedence();
+        self.next_token();
+        expression.right = Box::new(self.parse_expression(precendence).expect("IDK MAN"));
+
+        return Some(ast::Expression::Infix(expression));
     }
 
     fn cur_token_is(&mut self, t: TokenType) -> bool {
@@ -200,15 +253,45 @@ impl Parser {
         self.errors.push(msg);
     }
 
+    fn peek_precedence(&self) -> Precedence {
+        match precedences(&self.peek_token.token_type) {
+            Some(p) => p,
+            None => Precedence::LOWEST,
+        }
+    }
+    fn cur_precedence(&self) -> Precedence {
+        match precedences(&self.cur_token.token_type) {
+            Some(p) => p,
+            None => Precedence::LOWEST,
+        }
+    }
+
     fn prefix_parse_fns(&self, t: &TokenType) -> Option<prefix_parse_fn> {
         match t {
             TokenType::IDENT => Some(Parser::parse_identifier),
-            TokenType::INT=> Some(Parser::parse_integer_literal),
+            TokenType::INT => Some(Parser::parse_integer_literal),
+            TokenType::BANG => Some(Parser::parse_prefix_expression),
+            TokenType::MINUS => Some(Parser::parse_prefix_expression),
             _ => None,
         }
     }
+
+    fn no_prefix_parse_fn_error(&mut self, t: TokenType) {
+        let msg = format!("no prefix parse function for {:?} found", t);
+        self.errors.push(msg);
+    }
     fn infix_parse_fns(&self, t: &TokenType) -> Option<infix_parse_fn> {
-        todo!()
+        match t {
+            TokenType::PLUS
+            | TokenType::MINUS
+            | TokenType::SLASH
+            | TokenType::ASTERISK
+            | TokenType::EQ
+            | TokenType::NOT_EQ
+            | TokenType::LT
+            | TokenType::GT => Some(Parser::parse_infix_expression),
+            _ => None,
+        }
     }
 }
 
@@ -421,5 +504,162 @@ return 993322;
             "literal.token.literal not '5', got={}",
             literal.token.literal
         );
+    }
+
+    fn test_integer_literal(expr: &ast::Expression, value: i64) -> bool {
+        let integ = match expr {
+            ast::Expression::Integer(il) => il,
+            _ => {
+                eprintln!("expr is not an IntegerLiteral, got={:?}", expr);
+                return false;
+            }
+        };
+
+        if integ.value != value {
+            eprintln!("integ.value not {}, got={}", value, integ.value);
+            return false;
+        }
+
+        if integ.token.literal != value.to_string() {
+            eprintln!(
+                "integ.token.literal not {}, got={}",
+                value, integ.token.literal
+            );
+            return false;
+        }
+
+        true
+    }
+
+    #[test]
+    fn test_parsing_prefix_expressions() {
+        let prefix_tests = vec![("!5;", "!", 5i64), ("-15;", "-", 15i64)];
+
+        for (input, operator, integer_value) in prefix_tests {
+            let l = Lexer::new(input);
+            let mut p = Parser::new(l);
+            let program = p.parse_program();
+
+            check_parser_errors(&p);
+
+            assert_eq!(
+                program.statements.len(),
+                1,
+                "program.statements does not contain 1 statement, got={}",
+                program.statements.len()
+            );
+
+            let stmt = match &program.statements[0] {
+                Statement::Expression(es) => es,
+                _ => panic!(
+                    "program.statements[0] is not an ExpressionStatement, got={:?}",
+                    program.statements[0]
+                ),
+            };
+
+            let exp = match &stmt.expression {
+                Some(ast::Expression::Prefix(pe)) => pe,
+                _ => panic!(
+                    "stmt.expression is not a PrefixExpression, got={:?}",
+                    stmt.expression
+                ),
+            };
+
+            assert_eq!(
+                exp.operator, operator,
+                "exp.operator is not '{}', got={}",
+                operator, exp.operator
+            );
+
+            test_integer_literal(&exp.right, integer_value);
+        }
+    }
+
+    #[test]
+    fn test_parsing_infix_expression() {
+        let infix_tests = vec![
+            ("5 + 5;", 5, "+", 5),
+            ("5 - 5;", 5, "-", 5),
+            ("5 * 5;", 5, "*", 5),
+            ("5 / 5;", 5, "/", 5),
+            ("5 > 5;", 5, ">", 5),
+            ("5 < 5;", 5, "<", 5),
+            ("5 == 5;", 5, "==", 5),
+            ("5 != 5;", 5, "!=", 5),
+        ];
+
+        for (input, left_value, operator, right_value) in infix_tests {
+            let mut l = lexer::Lexer::new(input);
+            let mut p = Parser::new(l);
+            let program = p.parse_program();
+            check_parser_errors(&p);
+
+            if program.statements.len() != 1 {
+                eprintln!(
+                    "program.statements does no contain {} statements, got={}",
+                    1,
+                    program.statements.len()
+                );
+            }
+
+            let stmt = match &program.statements[0] {
+                ast::Statement::Expression(es) => es,
+                _ => panic!(
+                    "program.statements[0] is not ExpressionStatement. got {:?}",
+                    program.statements[0]
+                ),
+            };
+
+            let exp = match &stmt.expression {
+                Some(ast::Expression::Infix(is)) => is,
+                _ => panic!("exp is not InfixExpression got={:?}", stmt.expression),
+            };
+
+            if !test_integer_literal(&exp.right, right_value) {
+                return;
+            }
+
+            if exp.operator != operator {
+                panic!("exp.operator is not '{}' got={}", operator, exp.operator);
+            }
+
+            if !test_integer_literal(&exp.right, right_value) {
+                return;
+            }
+        }
+    }
+
+    #[test]
+    fn test_operator_precedence_parsing() {
+        let tests = vec![
+            ("-a * b", "((-a) * b)"),
+            ("!-a", "(!(-a))"),
+            ("a + b + c", "((a + b) + c)"),
+            ("a + b - c", "((a + b) - c)"),
+            ("a * b * c", "((a * b) * c)"),
+            ("a * b / c", "((a * b) / c)"),
+            ("a + b / c", "(a + (b / c))"),
+            ("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
+            ("3 + 4; -5 * 5", "(3 + 4)((-5) * 5)"),
+            ("5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"),
+            ("5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))"),
+            (
+                "3 + 4 * 5 == 3 * 1 + 4 * 5",
+                "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+            ),
+        ];
+
+        for (input, expected) in tests {
+            let l = lexer::Lexer::new(input);
+            let mut p = Parser::new(l);
+            let program = p.parse_program();
+            check_parser_errors(&p);
+
+            let actual = program.to_string();
+            if actual != expected {
+                eprintln!("expected={}, got={}", expected, actual);
+            }
+
+        }
     }
 }
