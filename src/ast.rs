@@ -134,6 +134,7 @@ pub enum Expression {
     Infix(InfixExpression),
     Boolean(BooleanExpression),
     If(IfExpression),
+    Function(FunctionLiteral),
 }
 
 #[allow(dead_code)]
@@ -149,6 +150,8 @@ impl Node for Expression {
             Expression::Prefix(pe) => return pe.to_string(),
             Expression::Infix(ie) => return ie.to_string(),
             Expression::Boolean(ie) => return ie.to_string(),
+            Expression::If(ie) => return ie.to_string(),
+            Expression::Function(ie) => return ie.to_string(),
             _ => todo!(),
         }
     }
@@ -166,7 +169,7 @@ impl Program {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct IdentifierExpression {
     pub token: token::Token,
     pub value: String,
@@ -298,6 +301,34 @@ impl Node for IfExpression {
     }
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Default)]
+pub struct FunctionLiteral {
+    pub token: token::Token,
+    pub parameters: Vec<IdentifierExpression>,
+    pub body: BlockStatement,
+}
+
+impl FunctionLiteral {
+    fn to_string(&self) -> String {
+        let mut out = String::new();
+
+        let mut params: Vec<String> = Vec::new();
+        for p in &self.parameters {
+            params.push(p.to_string());
+        }
+
+        out += &format!(
+            "{}({}){}",
+            self.token.literal.clone(),
+            params.join(", "),
+            self.body.to_string()
+        );
+
+        out
+    }
+}
+
 #[test]
 fn test_string() {
     let program = Program {
@@ -331,5 +362,3 @@ fn test_string() {
         program.to_string()
     );
 }
-
-
