@@ -101,7 +101,8 @@ pub enum Expression {
     Identifier(IdentifierExpression),
     Integer(IntegerLiteral),
     Prefix(PrefixExpression),
-    Infix(InfixExpression)
+    Infix(InfixExpression),
+    Boolean(BooleanExpression)
 }
 
 #[allow(dead_code)]
@@ -116,6 +117,7 @@ impl Node for Expression {
             Expression::Integer(ie) => return ie.to_string(),
             Expression::Prefix(pe) => return pe.to_string(),
             Expression::Infix(ie) => return ie.to_string(),
+            Expression::Boolean(ie) => return ie.to_string(),
             _ => todo!()
         }
     }
@@ -211,6 +213,23 @@ impl Node for IntegerLiteral {
     }
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Default)]
+pub struct BooleanExpression {
+    pub token: token::Token,
+    pub value: bool,
+}
+
+#[allow(dead_code)]
+impl Node for BooleanExpression {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+
+    fn to_string(&self) -> String {
+        self.token.literal.clone()
+    }
+}
 
 
 #[test]
