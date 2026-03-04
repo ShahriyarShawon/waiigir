@@ -1,5 +1,6 @@
 use crate::TokenType;
 use crate::ast;
+use crate::ast::BlockStatement;
 use crate::ast::BooleanExpression;
 use crate::ast::ExpressionStatement;
 use crate::ast::IdentifierExpression;
@@ -226,7 +227,7 @@ impl Parser {
         let exp = self.parse_expression(precendence);
         match exp {
             Some(e) => expression.right = Box::new(e),
-            None => return None
+            None => return None,
         };
 
         return Some(ast::Expression::Infix(expression));
@@ -245,12 +246,67 @@ impl Parser {
         match self.parse_expression(Precedence::LOWEST) {
             Some(e) => {
                 if !self.expect_peek(&TokenType::RPAREN) {
-                    return None
+                    return None;
                 }
                 Some(e)
-            },
-            None => return None
+            }
+            None => return None,
         }
+    }
+
+    fn parse_block_statement(&mut self) -> BlockStatement {
+        let mut block = BlockStatement {
+            token: self.cur_token.clone(),
+            ..Default::default()
+        };
+
+        self.next_token();
+        while !self.cur_token_is(TokenType::RBRACE) && !self.cur_token_is(TokenType::EOF) {
+            match self.parse_statement() {
+                Some(s) => block.statements.push(s),
+                None => {}
+            }
+            self.next_token();
+        }
+
+        block
+    }
+
+    fn parse_if_expression(&mut self) -> Option<ast::Expression> {
+        let mut expression = ast::IfExpression {
+            token: self.cur_token.clone(),
+            ..Default::default()
+        };
+
+        if !self.expect_peek(&TokenType::LPAREN) {
+            return None;
+        }
+
+        self.next_token();
+        expression.condition = Box::new(
+            self.parse_expression(Precedence::LOWEST)
+                .expect("BETTER BE"),
+        );
+
+        if !self.expect_peek(&TokenType::RPAREN) {
+            return None;
+        }
+        if !self.expect_peek(&TokenType::LBRACE) {
+            return None;
+        }
+        expression.consequence = Box::new(self.parse_block_statement());
+
+        if self.peek_token_is(&TokenType::ELSE) {
+            self.next_token();
+
+            if !self.expect_peek(&TokenType::LBRACE) {
+                return None;
+            }
+
+            expression.alternative = Some(Box::new(self.parse_block_statement()));
+        }
+
+        Some(ast::Expression::If(expression))
     }
 
     fn cur_token_is(&mut self, t: TokenType) -> bool {
@@ -300,6 +356,7 @@ impl Parser {
             TokenType::MINUS => Some(Parser::parse_prefix_expression),
             TokenType::TRUE | TokenType::FALSE => Some(Parser::parse_boolean),
             TokenType::LPAREN => Some(Parser::parse_grouped_expression),
+            TokenType::IF => Some(Parser::parse_if_expression),
             _ => None,
         }
     }
@@ -850,6 +907,156 @@ return 993322;
             if actual != expected {
                 eprintln!("expected={}, got={}", expected, actual);
             }
+        }
+    }
+
+    #[test]
+    fn test_if_expression() {
+        let input = "if (x < y) { x }";
+        let l = Lexer::new(input);
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program.statements does not contain 1 statement, got={}",
+            program.statements.len()
+        );
+
+        let stmt = match &program.statements[0] {
+            Statement::Expression(es) => es,
+            _ => panic!(
+                "program.statements[0] is not an ExpressionStatement, got={:?}",
+                program.statements[0]
+            ),
+        };
+
+        let exp = match &stmt.expression {
+            Some(ast::Expression::If(ie)) => ie,
+            _ => panic!(
+                "stmt.expression is not an IfExpression, got={:?}",
+                stmt.expression
+            ),
+        };
+
+        if !test_infix_expression(
+            &exp.condition,
+            ExpectedLiteral::Str("x".to_string()),
+            "<".to_string(),
+            ExpectedLiteral::Str("y".to_string()),
+        ) {
+            return;
+        }
+
+        assert_eq!(
+            exp.consequence.statements.len(),
+            1,
+            "consequence does not contain 1 statement, got={}",
+            exp.consequence.statements.len()
+        );
+
+        let consequence = match &exp.consequence.statements[0] {
+            Statement::Expression(es) => es,
+            _ => panic!(
+                "consequence.statements[0] is not an ExpressionStatement, got={:?}",
+                exp.consequence.statements[0]
+            ),
+        };
+
+        if !test_identifier(consequence.expression.as_ref().unwrap(), "x".to_string()) {
+            return;
+        }
+
+        assert!(
+            exp.alternative.is_none(),
+            "exp.alternative was not None, got={:?}",
+            exp.alternative
+        );
+    }
+
+    #[test]
+    fn test_if_else_expression() {
+        let input = "if (x < y) { x } else { y }";
+        let l = Lexer::new(input);
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program.statements does not contain 1 statement, got={}",
+            program.statements.len()
+        );
+
+        let stmt = match &program.statements[0] {
+            Statement::Expression(es) => es,
+            _ => panic!(
+                "program.statements[0] is not an ExpressionStatement, got={:?}",
+                program.statements[0]
+            ),
+        };
+
+        let exp = match &stmt.expression {
+            Some(ast::Expression::If(ie)) => ie,
+            _ => panic!(
+                "stmt.expression is not an IfExpression, got={:?}",
+                stmt.expression
+            ),
+        };
+
+        if !test_infix_expression(
+            &exp.condition,
+            ExpectedLiteral::Str("x".to_string()),
+            "<".to_string(),
+            ExpectedLiteral::Str("y".to_string()),
+        ) {
+            return;
+        }
+
+        assert_eq!(
+            exp.consequence.statements.len(),
+            1,
+            "consequence does not contain 1 statement, got={}",
+            exp.consequence.statements.len()
+        );
+
+        let consequence = match &exp.consequence.statements[0] {
+            Statement::Expression(es) => es,
+            _ => panic!(
+                "consequence.statements[0] is not an ExpressionStatement, got={:?}",
+                exp.consequence.statements[0]
+            ),
+        };
+
+        if !test_identifier(consequence.expression.as_ref().unwrap(), "x".to_string()) {
+            return;
+        }
+
+        let alt = match &exp.alternative {
+            Some(a) => a,
+            None => panic!("exp.alternative is None"),
+        };
+
+        assert_eq!(
+            alt.statements.len(),
+            1,
+            "alternative does not contain 1 statement, got={}",
+            alt.statements.len()
+        );
+
+        let alternative = match &alt.statements[0] {
+            Statement::Expression(es) => es,
+            _ => panic!(
+                "alt.statements[0] is not an ExpressionStatement, got={:?}",
+                alt.statements[0]
+            ),
+        };
+
+        if !test_identifier(alternative.expression.as_ref().unwrap(), "y".to_string()) {
+            return;
         }
     }
 }

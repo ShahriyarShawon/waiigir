@@ -14,7 +14,6 @@ impl Program {
         let mut out = String::new();
         for s in &self.statements {
             out += &s.to_string();
-
         }
 
         out
@@ -26,6 +25,7 @@ pub enum Statement {
     Let(LetStatement),
     Return(ReturnStatement),
     Expression(ExpressionStatement),
+    Block(BlockStatement),
 }
 
 #[allow(dead_code)]
@@ -35,6 +35,7 @@ impl Node for Statement {
             Statement::Let(s) => s.token.literal.clone(),
             Statement::Return(s) => s.token.literal.clone(),
             Statement::Expression(s) => s.token.literal.clone(),
+            Statement::Block(s) => s.token.literal.clone(),
         }
     }
 
@@ -68,6 +69,16 @@ impl Node for Statement {
                 Some(thing) => thing.to_string(),
                 None => String::new(),
             },
+
+            Statement::Block(s) => {
+                let mut out = String::new();
+
+                for statement in &s.statements {
+                    out += &statement.to_string()
+                }
+
+                out
+            }
         }
     }
 }
@@ -94,6 +105,25 @@ pub struct ExpressionStatement {
     pub expression: Option<Expression>,
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Default)]
+pub struct BlockStatement {
+    pub token: token::Token,
+    pub statements: Vec<Statement>,
+}
+
+impl BlockStatement {
+    fn to_string(&self) -> String {
+        let mut out = String::new();
+
+        for s in &self.statements {
+            out += &s.to_string()
+        }
+
+        out
+    }
+}
+
 #[derive(Debug, Default)]
 pub enum Expression {
     #[default]
@@ -102,7 +132,8 @@ pub enum Expression {
     Integer(IntegerLiteral),
     Prefix(PrefixExpression),
     Infix(InfixExpression),
-    Boolean(BooleanExpression)
+    Boolean(BooleanExpression),
+    If(IfExpression),
 }
 
 #[allow(dead_code)]
@@ -118,7 +149,7 @@ impl Node for Expression {
             Expression::Prefix(pe) => return pe.to_string(),
             Expression::Infix(ie) => return ie.to_string(),
             Expression::Boolean(ie) => return ie.to_string(),
-            _ => todo!()
+            _ => todo!(),
         }
     }
 }
@@ -157,7 +188,7 @@ impl Node for IdentifierExpression {
 pub struct PrefixExpression {
     pub token: token::Token,
     pub operator: String,
-    pub right: Box<Expression>
+    pub right: Box<Expression>,
 }
 
 #[allow(dead_code)]
@@ -179,7 +210,7 @@ pub struct InfixExpression {
     pub token: token::Token,
     pub left: Box<Expression>,
     pub operator: String,
-    pub right: Box<Expression>
+    pub right: Box<Expression>,
 }
 
 #[allow(dead_code)]
@@ -190,7 +221,12 @@ impl Node for InfixExpression {
 
     fn to_string(&self) -> String {
         let mut out = String::new();
-        out += &format!("({} {} {})", self.left.to_string(), self.operator, self.right.to_string());
+        out += &format!(
+            "({} {} {})",
+            self.left.to_string(),
+            self.operator,
+            self.right.to_string()
+        );
         out
     }
 }
@@ -231,6 +267,36 @@ impl Node for BooleanExpression {
     }
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Default)]
+pub struct IfExpression {
+    pub token: token::Token,
+    pub condition: Box<Expression>,
+    pub consequence: Box<BlockStatement>,
+    pub alternative: Option<Box<BlockStatement>>,
+}
+
+#[allow(dead_code)]
+impl Node for IfExpression {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+
+    fn to_string(&self) -> String {
+        let mut out = format!(
+            "if {:?} {:?}",
+            self.condition.to_string(),
+            self.consequence.to_string()
+        );
+
+        match &self.alternative {
+            Some(a) => out += &format!("else {}", a.to_string()),
+            None => {}
+        }
+
+        out
+    }
+}
 
 #[test]
 fn test_string() {
@@ -247,7 +313,7 @@ fn test_string() {
                 },
                 value: String::from("myVar"),
             },
-            value: Some(Expression::Identifier(IdentifierExpression{
+            value: Some(Expression::Identifier(IdentifierExpression {
                 token: token::Token {
                     token_type: token::TokenType::IDENT,
                     literal: String::from("anotherVar"),
@@ -265,3 +331,5 @@ fn test_string() {
         program.to_string()
     );
 }
+
+
