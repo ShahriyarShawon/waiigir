@@ -1,5 +1,6 @@
 use crate::lexer;
 use crate::parser;
+use crate::evaluator;
 use std::io;
 
 const PROMPT: &str = ">> ";
@@ -27,7 +28,12 @@ pub fn start() {
             continue;
         }
 
-        println!("{}", program.to_string());
+        // println!("{}", program.to_string());
+        let evaluated = evaluator::eval(program);
+        match evaluated {
+            Some(e) => println!("{}", e.Inspect()),
+            _ => todo!()
+        }
 
     }
 
