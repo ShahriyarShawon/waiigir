@@ -5,7 +5,6 @@ mod ast;
 mod parser;
 
 use crate::token::*;
-use crate::lexer::*;
 
 fn main() {
     repl::start();

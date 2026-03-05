@@ -64,7 +64,7 @@ impl Parser {
         self.peek_token = self.l.next_token();
     }
 
-    fn parse_program(&mut self) -> ast::Program {
+    pub fn parse_program(&mut self) -> ast::Program {
         let mut program = ast::Program {
             statements: Vec::new(),
         };
@@ -112,13 +112,12 @@ impl Parser {
             value: self.cur_token.literal.clone(),
         };
 
-        if self.expect_peek(&TokenType::ASSIGN) {
+        if !self.expect_peek(&TokenType::ASSIGN) {
             return None;
         }
         self.next_token();
         stmt.value = self.parse_expression(Precedence::LOWEST);
 
-        // skip expressions
         while !self.cur_token_is(TokenType::SEMICOLON) {
             self.next_token();
         }

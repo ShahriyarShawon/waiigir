@@ -1,5 +1,5 @@
 use crate::lexer;
-use crate::token;
+use crate::parser;
 use std::io;
 
 const PROMPT: &str = ">> ";
@@ -8,25 +8,32 @@ pub fn start() {
     let mut buffer = String::new();
 
     loop {
-        print!("{PROMPT}");
+        // eprint so it flushes io
+        eprint!("{PROMPT}");
+        buffer.clear();
         match io::stdin().read_line(&mut buffer) {
             Err(e) => {
                 println!("Error reading {e}");
                 return;
             }
-            Ok(v) => {
-                println!("{v} bytes read");
-            }
+            Ok(_) => {}
         }
-        let mut lexer = lexer::Lexer::new(&buffer);
 
-        loop {
-            let tok = lexer.next_token();
-            if tok.token_type == token::TokenType::EOF {
-                break;
-            }
+        let lexer = lexer::Lexer::new(&buffer);
+        let mut parser = parser::Parser::new(lexer);
+        let program = parser.parse_program();
+        if parser.errors.len() != 0 {
+            print_parser_errors(&parser);
+            continue;
+        }
 
-            println!("{:?}", tok);
+        println!("{}", program.to_string());
+
+    }
+
+    fn print_parser_errors(parser: &parser::Parser) {
+        for msg in &parser.errors {
+            println!("\t{}", msg);
         }
     }
 }
