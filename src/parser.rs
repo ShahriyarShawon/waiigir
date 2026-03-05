@@ -112,6 +112,12 @@ impl Parser {
             value: self.cur_token.literal.clone(),
         };
 
+        if self.expect_peek(&TokenType::ASSIGN) {
+            return None;
+        }
+        self.next_token();
+        stmt.value = self.parse_expression(Precedence::LOWEST);
+
         // skip expressions
         while !self.cur_token_is(TokenType::SEMICOLON) {
             self.next_token();
@@ -121,12 +127,14 @@ impl Parser {
     }
 
     fn parse_return_statement(&mut self) -> Option<ReturnStatement> {
-        let stmt = ast::ReturnStatement {
+        let mut stmt = ast::ReturnStatement {
             token: self.cur_token.clone(),
             return_value: None,
         };
 
         self.next_token();
+
+        stmt.return_value = self.parse_expression(Precedence::LOWEST);
 
         while !self.cur_token_is(TokenType::SEMICOLON) {
             self.next_token();
@@ -533,64 +541,91 @@ mod tests {
 
     #[test]
     fn test_let_statements() {
-        let input = "
-let x = 5;
-let y = 10;
-let foobar = 838383;
-";
+        let tests = vec![
+            ("let x = 5;", "x", ExpectedLiteral::Int(5)),
+            ("let y = true;", "y", ExpectedLiteral::Boolean(true)),
+            (
+                "let foobar = y;",
+                "foobar",
+                ExpectedLiteral::Str("y".to_string()),
+            ),
+        ];
 
-        let l = Lexer::new(input);
-        let mut p = Parser::new(l);
-        let program = p.parse_program();
-        check_parser_errors(&p);
+        for (input, expected_ident, expected_value) in tests {
+            let l = Lexer::new(input);
+            let mut p = Parser::new(l);
+            let program = p.parse_program();
+            check_parser_errors(&p);
 
-        assert_eq!(
-            program.statements.len(),
-            3,
-            "program.statements does not contain 3 statements, got={}",
-            program.statements.len()
-        );
+            assert_eq!(
+                program.statements.len(),
+                1,
+                "program.statements does not contain 1 statement, got={}",
+                program.statements.len()
+            );
 
-        let expected = vec!["x", "y", "foobar"];
+            let stmt = &program.statements[0];
 
-        for (i, expected_ident) in expected.iter().enumerate() {
-            let stmt = &program.statements[i];
             if !test_let_statement(stmt, expected_ident) {
-                panic!("test_let_statement failed for index {}", i);
+                return;
+            }
+
+            let val = match stmt {
+                Statement::Let(ls) => match &ls.value {
+                    Some(v) => v,
+                    None => {
+                        panic!("let statement value is None");
+                    }
+                },
+                _ => panic!("stmt is not a LetStatement"),
+            };
+
+            if !test_literal_expression(val, expected_value) {
+                return;
             }
         }
     }
-
     #[test]
     fn test_return_statements() {
-        let input = "
-return 5;
-return 10;
-return 993322;
-";
-        let l = Lexer::new(input);
-        let mut p = Parser::new(l);
-        let program = p.parse_program();
+        let tests = vec![
+            ("return 5;", ExpectedLiteral::Int(5)),
+            ("return true;", ExpectedLiteral::Boolean(true)),
+            ("return foobar;", ExpectedLiteral::Str("foobar".to_string())),
+        ];
 
-        check_parser_errors(&p);
+        for (input, expected_value) in tests {
+            let l = Lexer::new(input);
+            let mut p = Parser::new(l);
+            let program = p.parse_program();
+            check_parser_errors(&p);
 
-        assert_eq!(
-            program.statements.len(),
-            3,
-            "program.statements does not contain 3 statements, got={}",
-            program.statements.len()
-        );
+            assert_eq!(
+                program.statements.len(),
+                1,
+                "program.statements does not contain 1 statement, got={}",
+                program.statements.len()
+            );
 
-        for stmt in &program.statements {
-            match stmt {
-                Statement::Return(return_stmt) => {
-                    assert_eq!(
-                        return_stmt.token.literal, "return",
-                        "return_stmt.token.literal not 'return', got={}",
-                        return_stmt.token.literal
-                    );
-                }
+            let stmt = &program.statements[0];
+
+            let return_stmt = match stmt {
+                Statement::Return(rs) => rs,
                 _ => panic!("stmt is not a ReturnStatement, got={:?}", stmt),
+            };
+
+            assert_eq!(
+                return_stmt.token.literal, "return",
+                "return_stmt.token.literal not 'return', got={}",
+                return_stmt.token.literal
+            );
+
+            let val = match &return_stmt.return_value {
+                Some(v) => v,
+                None => panic!("return statement value is None"),
+            };
+
+            if !test_literal_expression(val, expected_value) {
+                return;
             }
         }
     }
