@@ -5,6 +5,10 @@ const CONST_TRUE: BooleanObject = BooleanObject { value: true };
 const CONST_FALSE: BooleanObject = BooleanObject { value: false };
 const CONST_NULL: NullObject = NullObject {};
 
+const TRUE_OBJ: Object = Object::Boolean(CONST_TRUE);
+const FALSE_OBJ: Object = Object::Boolean(CONST_FALSE);
+const NULL_OBJ: Object = Object::Null(CONST_NULL);
+
 pub fn eval(program: Program) -> Option<Object> {
     let mut o: Object = Object::Integer(IntegerObject { value: 0 });
 
@@ -19,19 +23,59 @@ pub fn eval(program: Program) -> Option<Object> {
 }
 
 fn eval_expression_statement(es: ExpressionStatement) -> Object {
-    match es.expression.unwrap() {
+    eval_expression(es.expression.unwrap())
+}
+
+fn eval_expression(e: Expression) -> Object {
+    match e {
         Expression::Integer(il) => {
             let io = IntegerObject { value: il.value };
             Object::Integer(io)
         }
         Expression::Boolean(be) => {
-            let v = if be.value { CONST_TRUE } else { CONST_FALSE };
-            Object::Boolean(v)
+            match be.value {
+                true => TRUE_OBJ,
+                false => FALSE_OBJ,
+            }
+        }
+        Expression::Prefix(pe) => {
+            let right = eval_expression(*pe.right);
+            eval_prefix_expression(&pe.operator, right)
         }
         _ => todo!(),
     }
 }
 
+fn eval_prefix_expression(operator: &str, right: Object) -> Object {
+    match operator {
+        "!" => eval_bang_operator_expression(right),
+        "-" => eval_minus_prefix_operator(right),
+        _ => Object::Null(CONST_NULL),
+    }
+}
+
+fn eval_bang_operator_expression(right: Object) -> Object {
+    match right {
+        Object::Boolean(be) => match be.value {
+            true => FALSE_OBJ,
+            false => TRUE_OBJ,
+        },
+        Object::Null(_) => TRUE_OBJ,
+        _ => FALSE_OBJ,
+    }
+}
+
+fn eval_minus_prefix_operator(right: Object) -> Object {
+    match right {
+        Object::Integer(io) => {
+            let value = io.value;
+            Object::Integer(IntegerObject { value: -value })
+        }
+        _ => {
+            NULL_OBJ
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use crate::evaluator::eval;
@@ -43,61 +87,76 @@ mod tests {
         let l = Lexer::new(input);
         let mut p = Parser::new(l);
         let program = p.parse_program();
-
         eval(program)
     }
 
-    fn test_integer_object(obj: Object, expected: i64) -> bool {
-        let result = match obj {
-            Object::Integer(io) => io,
-            _ => {
-                eprintln!("object is not Integer. got={:?}", obj);
-                return false;
-            }
-        };
-
-        if result.value != expected {
-            eprintln!(
-                "object has wrong value. got={}, want={}",
-                result.value, expected
-            );
-            return false;
+    fn test_integer_object(obj: &Object, expected: i64) {
+        match obj {
+            Object::Integer(io) => {
+                assert_eq!(
+                    io.value, expected,
+                    "object has wrong value, got={}, want={}",
+                    io.value, expected
+                );
+            },
+            _ => panic!("object is not Integer, got={:?}", obj),
         }
-        return true;
     }
 
-    fn test_boolean_object(obj: Option<Object>, expected: bool) -> bool {
+    fn test_boolean_object(obj: Option<Object>, expected: bool) {
         match obj {
             Some(Object::Boolean(b)) => {
-                if b.value != expected {
-                    eprintln!("object has wrong value, got={}, want={}", b.value, expected);
-                    return false;
-                }
-                true
-            }
-            _ => {
-                eprintln!("object is not Boolean, got={:?}", obj);
-                false
-            }
+                assert_eq!(
+                    b.value, expected,
+                    "object has wrong value, got={}, want={}",
+                    b.value, expected
+                );
+            },
+            _ => panic!("object is not Boolean, got={:?}", obj),
         }
     }
 
     #[test]
     fn test_eval_integer_expressions() {
-        let tests = vec![("5", 5), ("10", 10)];
+        let tests = vec![
+            ("5",   5),
+            ("10",  10),
+            ("-5",  -5),
+            ("-10", -10),
+        ];
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
             match evaluated {
-                Some(e) => test_integer_object(e, expected),
-                None => panic!("DID NOT GET BACK EVALUATED INTEGER EXPRESSION"),
-            };
+                Some(e) => test_integer_object(&e, expected),
+                None    => panic!("eval returned None for input: {}", input),
+            }
         }
     }
 
     #[test]
     fn test_eval_boolean_expression() {
-        let tests = vec![("true", true), ("false", false)];
+        let tests = vec![
+            ("true",  true),
+            ("false", false),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input);
+            test_boolean_object(evaluated, expected);
+        }
+    }
+
+    #[test]
+    fn test_bang_operator() {
+        let tests = vec![
+            ("!true",   false),
+            ("!false",  true),
+            ("!5",      false),
+            ("!!true",  true),
+            ("!!false", false),
+            ("!!5",     true),
+        ];
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
