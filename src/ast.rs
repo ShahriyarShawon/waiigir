@@ -69,7 +69,6 @@ impl Node for Statement {
                 Some(thing) => thing.to_string(),
                 None => String::new(),
             },
-
             Statement::Block(s) => {
                 let mut out = String::new();
 
@@ -135,6 +134,7 @@ pub enum Expression {
     Boolean(BooleanExpression),
     If(IfExpression),
     Function(FunctionLiteral),
+    Call(CallExpression)
 }
 
 #[allow(dead_code)]
@@ -152,6 +152,7 @@ impl Node for Expression {
             Expression::Boolean(ie) => return ie.to_string(),
             Expression::If(ie) => return ie.to_string(),
             Expression::Function(ie) => return ie.to_string(),
+            Expression::Call(ie) => return ie.to_string(),
             _ => todo!(),
         }
     }
@@ -328,6 +329,38 @@ impl FunctionLiteral {
         out
     }
 }
+
+#[allow(dead_code)]
+#[derive(Debug, Default)]
+pub struct CallExpression {
+    pub token: token::Token,
+    pub function: Box<Expression>,
+    pub arguments: Vec<Expression>
+}
+
+#[allow(dead_code)]
+impl Node for CallExpression {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+
+    fn to_string(&self) -> String {
+        let mut out = String::new();
+        let mut args: Vec<String> = Vec::new();
+
+        for a in &self.arguments {
+            args.push(a.to_string());
+        }
+
+        out += &format!("{}({})", self.function.to_string(), args.join(" "));
+
+        out
+    }
+}
+
+
+
+
 
 #[test]
 fn test_string() {

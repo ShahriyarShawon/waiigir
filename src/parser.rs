@@ -2,6 +2,7 @@ use crate::TokenType;
 use crate::ast;
 use crate::ast::BlockStatement;
 use crate::ast::BooleanExpression;
+use crate::ast::CallExpression;
 use crate::ast::ExpressionStatement;
 use crate::ast::FunctionLiteral;
 use crate::ast::IdentifierExpression;
@@ -30,6 +31,7 @@ fn precedences(t: &TokenType) -> Option<Precedence> {
         TokenType::LT | TokenType::GT => Some(Precedence::LESSGREATER),
         TokenType::PLUS | TokenType::MINUS => Some(Precedence::SUM),
         TokenType::SLASH | TokenType::ASTERISK => Some(Precedence::PRODUCT),
+        TokenType::LPAREN => Some(Precedence::CALL),
         _ => None,
     }
 }
@@ -234,6 +236,43 @@ impl Parser {
         return Some(ast::Expression::Infix(expression));
     }
 
+    fn parse_call_expression(&mut self, function: ast::Expression) -> Option<ast::Expression> {
+        let mut exp = CallExpression {
+            token: self.cur_token.clone(),
+            function: Box::new(function),
+            ..Default::default()
+        };
+
+        // exp.arguments = self.parse_call_arguments();
+        match self.parse_call_arguments() {
+            Some(a) => exp.arguments = a,
+            None => {}
+        }
+        Some(ast::Expression::Call(exp))
+    }
+    fn parse_call_arguments(&mut self) -> Option<Vec<ast::Expression>> {
+        let mut args: Vec<ast::Expression> = Vec::new();
+
+        if self.peek_token_is(&TokenType::RPAREN) {
+            self.next_token();
+            return Some(args);
+        }
+
+        self.next_token();
+        args.push(self.parse_expression(Precedence::LOWEST).expect("OHNOOO"));
+
+        while self.peek_token_is(&TokenType::COMMA) {
+            self.next_token();
+            self.next_token();
+            args.push(self.parse_expression(Precedence::LOWEST).expect("AH CRAP"));
+        }
+
+        if !self.expect_peek(&TokenType::RPAREN) {
+            return None;
+        }
+        Some(args)
+    }
+
     fn parse_boolean(&mut self) -> Option<ast::Expression> {
         let be = BooleanExpression {
             token: self.cur_token.clone(),
@@ -431,6 +470,7 @@ impl Parser {
             | TokenType::NOT_EQ
             | TokenType::LT
             | TokenType::GT => Some(Parser::parse_infix_expression),
+            TokenType::LPAREN => Some(Parser::parse_call_expression),
             _ => None,
         }
     }
@@ -951,6 +991,15 @@ return 993322;
             ("2 / (5 + 5)", "(2 / (5 + 5))"),
             ("-(5 + 5)", "(-(5 + 5))"),
             ("!(true == true)", "(!(true == true))"),
+            ("a + add(b * c) + d", "((a + add((b * c))) + d)"),
+            (
+                "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
+                "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))",
+            ),
+            (
+                "add(a + b + c * d / f + g)",
+                "add((((a + b) + ((c * d) / f)) + g))",
+            ),
         ];
 
         for (input, expected) in tests {
@@ -1230,5 +1279,62 @@ return 993322;
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_call_expression_parsing() {
+        let input = "add(1, 2 * 3, 4 + 5);";
+        let l = Lexer::new(input);
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program.statements does not contain 1 statement, got={}",
+            program.statements.len()
+        );
+
+        let stmt = match &program.statements[0] {
+            Statement::Expression(es) => es,
+            _ => panic!(
+                "program.statements[0] is not an ExpressionStatement, got={:?}",
+                program.statements[0]
+            ),
+        };
+
+        let exp = match &stmt.expression {
+            Some(ast::Expression::Call(ce)) => ce,
+            _ => panic!(
+                "stmt.expression is not a CallExpression, got={:?}",
+                stmt.expression
+            ),
+        };
+
+        if !test_identifier(&exp.function, "add".to_string()) {
+            return;
+        }
+
+        assert_eq!(
+            exp.arguments.len(),
+            3,
+            "wrong length of arguments, got={}",
+            exp.arguments.len()
+        );
+
+        test_literal_expression(&exp.arguments[0], ExpectedLiteral::Int(1));
+        test_infix_expression(
+            &exp.arguments[1],
+            ExpectedLiteral::Int(2),
+            "*".to_string(),
+            ExpectedLiteral::Int(3),
+        );
+        test_infix_expression(
+            &exp.arguments[2],
+            ExpectedLiteral::Int(4),
+            "+".to_string(),
+            ExpectedLiteral::Int(5),
+        );
     }
 }
