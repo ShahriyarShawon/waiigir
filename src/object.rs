@@ -32,10 +32,9 @@ impl Object {
 
     pub fn Inspect(&self) -> String {
         match self {
-            Object::Integer(io) => return format!("{}", io.value),
-            Object::Boolean(bo) => return format!("{}", bo.value),
-            Object::Null(_) => return String::from("null"),
-            _ => {todo!()}
+            Object::Integer(io) => format!("{}", io.value),
+            Object::Boolean(bo) => format!("{}", bo.value),
+            Object::Null(_) => String::from("null"),
         }
     }
 

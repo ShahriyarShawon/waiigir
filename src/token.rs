@@ -13,7 +13,7 @@ impl Token {
     }
 }
 
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 #[derive(Debug, Default, PartialEq, Clone)]
 pub enum TokenType {
     #[default]

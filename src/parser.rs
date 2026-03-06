@@ -14,6 +14,7 @@ use crate::token;
 type prefix_parse_fn = fn(&mut Parser) -> Option<ast::Expression>;
 type infix_parse_fn = fn(&mut Parser, ast::Expression) -> Option<ast::Expression>;
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
 pub enum Precedence {
     LOWEST,
@@ -62,7 +63,7 @@ impl Parser {
         p.next_token();
         p.next_token();
 
-        return p;
+        p
     }
 
     fn next_token(&mut self) {
@@ -77,9 +78,8 @@ impl Parser {
 
         while self.cur_token.token_type != token::TokenType::EOF {
             let stmt = self.parse_statement();
-            match stmt {
-                Some(s) => program.statements.push(s),
-                None => {}
+            if let Some(s) = stmt {
+                program.statements.push(s);
             }
             self.next_token();
         }
@@ -89,18 +89,11 @@ impl Parser {
 
     fn parse_statement(&mut self) -> Option<ast::Statement> {
         match self.cur_token.token_type {
-            token::TokenType::LET => match self.parse_let_statement() {
-                Some(ls) => Some(ast::Statement::Let(ls)),
-                None => None,
-            },
-            token::TokenType::RETURN => match self.parse_return_statement() {
-                Some(rs) => Some(ast::Statement::Return(rs)),
-                None => None,
-            },
-            _ => match self.parse_expression_statement() {
-                Some(es) => Some(ast::Statement::Expression(es)),
-                None => None,
-            },
+            token::TokenType::LET => self.parse_let_statement().map(ast::Statement::Let),
+            token::TokenType::RETURN => self.parse_return_statement().map(ast::Statement::Return),
+            _ => self
+                .parse_expression_statement()
+                .map(ast::Statement::Expression),
         }
     }
 
@@ -183,14 +176,14 @@ impl Parser {
             left_exp = infix(self, left_exp.expect("I HOPE SO"));
         }
 
-        return left_exp;
+        left_exp
     }
 
     fn parse_identifier(&mut self) -> Option<ast::Expression> {
-        return Some(ast::Expression::Identifier(IdentifierExpression {
+        Some(ast::Expression::Identifier(IdentifierExpression {
             token: self.cur_token.clone(),
             value: self.cur_token.literal.clone(),
-        }));
+        }))
     }
 
     fn parse_integer_literal(&mut self) -> Option<ast::Expression> {
@@ -246,7 +239,7 @@ impl Parser {
             None => return None,
         };
 
-        return Some(ast::Expression::Infix(expression));
+        Some(ast::Expression::Infix(expression))
     }
 
     fn parse_call_expression(&mut self, function: ast::Expression) -> Option<ast::Expression> {
@@ -257,9 +250,8 @@ impl Parser {
         };
 
         // exp.arguments = self.parse_call_arguments();
-        match self.parse_call_arguments() {
-            Some(a) => exp.arguments = a,
-            None => {}
+        if let Some(a) = self.parse_call_arguments() {
+            exp.arguments = a
         }
         Some(ast::Expression::Call(exp))
     }
@@ -291,7 +283,7 @@ impl Parser {
             token: self.cur_token.clone(),
             value: self.cur_token_is(TokenType::TRUE),
         };
-        return Some(ast::Expression::Boolean(be));
+        Some(ast::Expression::Boolean(be))
     }
 
     fn parse_grouped_expression(&mut self) -> Option<ast::Expression> {
@@ -303,7 +295,7 @@ impl Parser {
                 }
                 Some(e)
             }
-            None => return None,
+            None => None,
         }
     }
 
@@ -315,9 +307,8 @@ impl Parser {
 
         self.next_token();
         while !self.cur_token_is(TokenType::RBRACE) && !self.cur_token_is(TokenType::EOF) {
-            match self.parse_statement() {
-                Some(s) => block.statements.push(s),
-                None => {}
+            if let Some(s) = self.parse_statement() {
+                block.statements.push(s)
             }
             self.next_token();
         }

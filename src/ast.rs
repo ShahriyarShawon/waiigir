@@ -45,9 +45,8 @@ impl Node for Statement {
                 let mut out = String::new();
                 out += &format!("{} {} = ", &s.token.literal.clone(), s.name.to_string());
 
-                match &s.value {
-                    Some(v) => out += &v.to_string(),
-                    None => {}
+                if let Some(v) = &s.value {
+                    out += &v.to_string()
                 }
 
                 out += ";";
@@ -57,9 +56,8 @@ impl Node for Statement {
                 let mut out = String::new();
                 out += &format!("{} ", s.token.literal.clone());
 
-                match &s.return_value {
-                    Some(v) => out += &v.to_string(),
-                    None => {}
+                if let Some(v) = &s.return_value {
+                    out += &v.to_string()
                 }
                 out += ";";
 
@@ -134,7 +132,7 @@ pub enum Expression {
     Boolean(BooleanExpression),
     If(IfExpression),
     Function(FunctionLiteral),
-    Call(CallExpression)
+    Call(CallExpression),
 }
 
 #[allow(dead_code)]
@@ -145,14 +143,14 @@ impl Node for Expression {
 
     fn to_string(&self) -> String {
         match self {
-            Expression::Identifier(ie) => return ie.value.clone(),
-            Expression::Integer(ie) => return ie.to_string(),
-            Expression::Prefix(pe) => return pe.to_string(),
-            Expression::Infix(ie) => return ie.to_string(),
-            Expression::Boolean(ie) => return ie.to_string(),
-            Expression::If(ie) => return ie.to_string(),
-            Expression::Function(ie) => return ie.to_string(),
-            Expression::Call(ie) => return ie.to_string(),
+            Expression::Identifier(ie) => ie.value.clone(),
+            Expression::Integer(ie) => ie.to_string(),
+            Expression::Prefix(pe) => pe.to_string(),
+            Expression::Infix(ie) => ie.to_string(),
+            Expression::Boolean(ie) => ie.to_string(),
+            Expression::If(ie) => ie.to_string(),
+            Expression::Function(ie) => ie.to_string(),
+            Expression::Call(ie) => ie.to_string(),
             _ => todo!(),
         }
     }
@@ -161,10 +159,10 @@ impl Node for Expression {
 #[allow(dead_code)]
 impl Program {
     pub fn token_literal(&self) -> String {
-        if self.statements.len() > 0 {
-            return self.statements[0].token_literal();
+        if !self.statements.is_empty() {
+            self.statements[0].token_literal()
         } else {
-            return String::new();
+            String::new()
         }
     }
 }
@@ -179,7 +177,7 @@ pub struct IdentifierExpression {
 #[allow(dead_code)]
 impl Node for IdentifierExpression {
     fn token_literal(&self) -> String {
-        return self.token.literal.clone();
+        self.token.literal.clone()
     }
 
     fn to_string(&self) -> String {
@@ -198,7 +196,7 @@ pub struct PrefixExpression {
 #[allow(dead_code)]
 impl Node for PrefixExpression {
     fn token_literal(&self) -> String {
-        return self.token.literal.clone();
+        self.token.literal.clone()
     }
 
     fn to_string(&self) -> String {
@@ -220,7 +218,7 @@ pub struct InfixExpression {
 #[allow(dead_code)]
 impl Node for InfixExpression {
     fn token_literal(&self) -> String {
-        return self.token.literal.clone();
+        self.token.literal.clone()
     }
 
     fn to_string(&self) -> String {
@@ -245,7 +243,7 @@ pub struct IntegerLiteral {
 #[allow(dead_code)]
 impl Node for IntegerLiteral {
     fn token_literal(&self) -> String {
-        return self.token.literal.clone();
+        self.token.literal.clone()
     }
 
     fn to_string(&self) -> String {
@@ -263,7 +261,7 @@ pub struct BooleanExpression {
 #[allow(dead_code)]
 impl Node for BooleanExpression {
     fn token_literal(&self) -> String {
-        return self.token.literal.clone();
+        self.token.literal.clone()
     }
 
     fn to_string(&self) -> String {
@@ -283,7 +281,7 @@ pub struct IfExpression {
 #[allow(dead_code)]
 impl Node for IfExpression {
     fn token_literal(&self) -> String {
-        return self.token.literal.clone();
+        self.token.literal.clone()
     }
 
     fn to_string(&self) -> String {
@@ -293,9 +291,8 @@ impl Node for IfExpression {
             self.consequence.to_string()
         );
 
-        match &self.alternative {
-            Some(a) => out += &format!("else {}", a.to_string()),
-            None => {}
+        if let Some(a) = &self.alternative {
+            out += &format!("else {}", a.to_string())
         }
 
         out
@@ -335,13 +332,13 @@ impl FunctionLiteral {
 pub struct CallExpression {
     pub token: token::Token,
     pub function: Box<Expression>,
-    pub arguments: Vec<Expression>
+    pub arguments: Vec<Expression>,
 }
 
 #[allow(dead_code)]
 impl Node for CallExpression {
     fn token_literal(&self) -> String {
-        return self.token.literal.clone();
+        self.token.literal.clone()
     }
 
     fn to_string(&self) -> String {
@@ -357,10 +354,6 @@ impl Node for CallExpression {
         out
     }
 }
-
-
-
-
 
 #[test]
 fn test_string() {

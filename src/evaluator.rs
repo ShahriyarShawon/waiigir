@@ -92,7 +92,7 @@ fn eval_integer_infix_expression(operator: &str, left: i64, right: i64) -> Objec
             value: left != right,
         }),
 
-        _ => return NULL_OBJ,
+        _ => NULL_OBJ,
     }
 }
 fn eval_prefix_expression(operator: &str, right: Object) -> Object {

@@ -40,7 +40,7 @@ impl Lexer {
         while self.ch.is_alphabetic() {
             self.read_char();
         }
-        return self.input[p..self.position].iter().collect();
+        self.input[p..self.position].iter().collect()
     }
 
     fn read_number(&mut self) -> String {
@@ -48,7 +48,7 @@ impl Lexer {
         while self.ch.is_numeric() {
             self.read_char();
         }
-        return self.input[p..self.position].iter().collect();
+        self.input[p..self.position].iter().collect()
     }
 
     fn lookup_ident(ident: &str) -> TokenType {
@@ -131,7 +131,6 @@ impl Lexer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::token::*;
 
     #[test]
     fn test_next_token() {

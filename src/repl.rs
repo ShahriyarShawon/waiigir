@@ -1,6 +1,6 @@
+use crate::evaluator;
 use crate::lexer;
 use crate::parser;
-use crate::evaluator;
 use std::io;
 
 const PROMPT: &str = ">> ";
@@ -12,18 +12,15 @@ pub fn start() {
         // eprint so it flushes io
         eprint!("{PROMPT}");
         buffer.clear();
-        match io::stdin().read_line(&mut buffer) {
-            Err(e) => {
-                println!("Error reading {e}");
-                return;
-            }
-            Ok(_) => {}
+        if let Err(e) = io::stdin().read_line(&mut buffer) {
+            println!("Error reading {e}");
+            return;
         }
 
         let lexer = lexer::Lexer::new(&buffer);
         let mut parser = parser::Parser::new(lexer);
         let program = parser.parse_program();
-        if parser.errors.len() != 0 {
+        if !parser.errors.is_empty() {
             print_parser_errors(&parser);
             continue;
         }
@@ -32,9 +29,8 @@ pub fn start() {
         let evaluated = evaluator::eval(program);
         match evaluated {
             Some(e) => println!("{}", e.Inspect()),
-            _ => todo!()
+            _ => todo!(),
         }
-
     }
 
     fn print_parser_errors(parser: &parser::Parser) {
