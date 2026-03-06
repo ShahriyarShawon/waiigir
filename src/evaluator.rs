@@ -1,5 +1,5 @@
 use crate::ast::{Expression, IfExpression, Program, Statement};
-use crate::object::{BooleanObject, IntegerObject, NullObject, Object};
+use crate::object::{BooleanObject, IntegerObject, NullObject, Object, ReturnValue};
 
 const CONST_TRUE: BooleanObject = BooleanObject { value: true };
 const CONST_FALSE: BooleanObject = BooleanObject { value: false };
@@ -10,21 +10,47 @@ const FALSE_OBJ: Object = Object::Boolean(CONST_FALSE);
 const NULL_OBJ: Object = Object::Null(CONST_NULL);
 
 pub fn eval(program: Program) -> Option<Object> {
-    Some(eval_statements(program.statements))
-}
-
-fn eval_statements(statements: Vec<Statement>) -> Object {
+    // Some(eval_statements(program.statements))
     let mut o: Object = Object::Integer(IntegerObject { value: 0 });
 
-    for s in statements {
-        match s {
-            Statement::Expression(es) => o = eval_expression(es.expression.unwrap()),
-            Statement::Block(bs) => o = eval_statements(bs.statements),
-            _ => return NULL_OBJ
+    for s in program.statements {
+        o = eval_statement(s);
+        if let Object::Return(rs) = o {
+            return Some(*rs.value);
         }
     }
 
+    Some(o)
+}
+
+fn eval_statement(statement: Statement) -> Object {
+    let o = match statement {
+        Statement::Expression(es) => eval_expression(es.expression.unwrap()),
+        Statement::Block(bs) => eval_block_statement(Statement::Block(bs)),
+        Statement::Return(rs) => {
+            let val = eval_expression(rs.return_value.expect("return value missing"));
+            return Object::Return(ReturnValue {
+                value: Box::new(val),
+            });
+        }
+        _ => return NULL_OBJ,
+    };
+
     o
+}
+
+fn eval_block_statement(statement: Statement) -> Object {
+    let mut result: Object = Object::Integer(IntegerObject { value: 0 });
+    if let Statement::Block(bs) = statement {
+        for s in bs.statements {
+            result = eval_statement(s);
+            if let Object::Return(_) = &result {
+                return result;
+            }
+        }
+    }
+
+    result
 }
 
 fn eval_expression(e: Expression) -> Object {
@@ -46,9 +72,7 @@ fn eval_expression(e: Expression) -> Object {
             let right = eval_expression(*ie.right);
             eval_infix_expression(&ie.operator, left, right)
         }
-        Expression::If(ie) => {
-            eval_if_expression(ie)
-        }
+        Expression::If(ie) => eval_if_expression(ie),
         _ => NULL_OBJ,
     }
 }
@@ -56,19 +80,17 @@ fn eval_expression(e: Expression) -> Object {
 fn is_truthy(o: Object) -> bool {
     match o {
         Object::Null(_) => false,
-        Object::Boolean(bo) => {
-            bo.value
-        },
-        _ => true
+        Object::Boolean(bo) => bo.value,
+        _ => true,
     }
 }
 
 fn eval_if_expression(ie: IfExpression) -> Object {
     let condition = eval_expression(*ie.condition);
     if is_truthy(condition) {
-        eval_statements(ie.consequence.statements)
+        eval_block_statement(Statement::Block(*ie.consequence))
     } else if let Some(a) = ie.alternative {
-        eval_statements(a.statements)
+        eval_block_statement(Statement::Block(*a))
     } else {
         NULL_OBJ
     }
@@ -318,6 +340,26 @@ mod tests {
                 Expected::Int(i) => test_integer_object(&evaluated, *i, input, &mut failures),
                 Expected::Null => test_null_object(&evaluated, input, &mut failures),
             }
+        }
+
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn test_return_statements() {
+        let tests = vec![
+            ("return 10;", 10),
+            ("return 10; 9;", 10),
+            ("return 2 * 5; 9;", 10),
+            ("9; return 2 * 5; 9;", 10),
+            ("if (10 > 1) { if (10 > 1) { return 10; } return 1; }", 10),
+        ];
+
+        let mut failures: Vec<String> = Vec::new();
+
+        for (input, expected) in &tests {
+            let evaluated = test_eval(input);
+            test_integer_object(&evaluated, *expected, input, &mut failures);
         }
 
         assert!(failures.is_empty(), "\n{}", failures.join("\n"));

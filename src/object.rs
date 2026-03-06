@@ -1,39 +1,18 @@
-// pub type ObjectType = String;
-#[derive(PartialEq)]
-pub enum ObjectType {
-    Integer,
-    Boolean,
-    Null
-}
-
-
-fn obj_map(o: &Object) -> ObjectType {
-    match o {
-        // Object::Integer(_) => String::from("INTEGER"),
-        // Object::Boolean(_) => String::from("BOOLEAN"),
-        // Object::Null(_) => String::from("NULL"),
-        Object::Integer(_) => ObjectType::Integer,
-        Object::Boolean(_) => ObjectType::Boolean,
-        Object::Null(_) => ObjectType::Null
-    }
-}
 #[derive(Debug)]
 pub enum Object {
     Integer(IntegerObject),
     Boolean(BooleanObject),
+    Return(ReturnValue),
     Null(NullObject),
 }
 
 #[allow(non_snake_case)]
 impl Object {
-    pub fn Type(&self) -> ObjectType {
-        obj_map(self)
-    }
-
     pub fn Inspect(&self) -> String {
         match self {
             Object::Integer(io) => format!("{}", io.value),
             Object::Boolean(bo) => format!("{}", bo.value),
+            Object::Return(ro) => format!("{:?}", ro.value),
             Object::Null(_) => String::from("null"),
         }
     }
@@ -52,6 +31,11 @@ pub struct IntegerObject {
 #[derive(Debug)]
 pub struct BooleanObject {
     pub value: bool 
+}
+
+#[derive(Debug)]
+pub struct ReturnValue{
+    pub value: Box<Object>
 }
 
 #[derive(Debug)]
