@@ -1,11 +1,20 @@
-pub type ObjectType = String;
+// pub type ObjectType = String;
+#[derive(PartialEq)]
+pub enum ObjectType {
+    Integer,
+    Boolean,
+    Null
+}
 
 
 fn obj_map(o: &Object) -> ObjectType {
     match o {
-        Object::Integer(_) => String::from("INTEGER"),
-        Object::Boolean(_) => String::from("BOOLEAN"),
-        Object::Null(_) => String::from("NULL"),
+        // Object::Integer(_) => String::from("INTEGER"),
+        // Object::Boolean(_) => String::from("BOOLEAN"),
+        // Object::Null(_) => String::from("NULL"),
+        Object::Integer(_) => ObjectType::Integer,
+        Object::Boolean(_) => ObjectType::Boolean,
+        Object::Null(_) => ObjectType::Null
     }
 }
 #[derive(Debug)]
