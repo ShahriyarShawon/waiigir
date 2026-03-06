@@ -1,4 +1,4 @@
-use crate::ast::{Expression, ExpressionStatement, Program, Statement};
+use crate::ast::{Expression, IfExpression, Program, Statement};
 use crate::object::{BooleanObject, IntegerObject, NullObject, Object};
 
 const CONST_TRUE: BooleanObject = BooleanObject { value: true };
@@ -10,20 +10,21 @@ const FALSE_OBJ: Object = Object::Boolean(CONST_FALSE);
 const NULL_OBJ: Object = Object::Null(CONST_NULL);
 
 pub fn eval(program: Program) -> Option<Object> {
+    Some(eval_statements(program.statements))
+}
+
+fn eval_statements(statements: Vec<Statement>) -> Object {
     let mut o: Object = Object::Integer(IntegerObject { value: 0 });
 
-    for s in program.statements {
+    for s in statements {
         match s {
-            Statement::Expression(es) => o = eval_expression_statement(es),
-            _ => return None,
+            Statement::Expression(es) => o = eval_expression(es.expression.unwrap()),
+            Statement::Block(bs) => o = eval_statements(bs.statements),
+            _ => return NULL_OBJ
         }
     }
 
-    Some(o)
-}
-
-fn eval_expression_statement(es: ExpressionStatement) -> Object {
-    eval_expression(es.expression.unwrap())
+    o
 }
 
 fn eval_expression(e: Expression) -> Object {
@@ -45,7 +46,31 @@ fn eval_expression(e: Expression) -> Object {
             let right = eval_expression(*ie.right);
             eval_infix_expression(&ie.operator, left, right)
         }
-        _ => todo!(),
+        Expression::If(ie) => {
+            eval_if_expression(ie)
+        }
+        _ => NULL_OBJ,
+    }
+}
+
+fn is_truthy(o: Object) -> bool {
+    match o {
+        Object::Null(_) => false,
+        Object::Boolean(bo) => {
+            bo.value
+        },
+        _ => true
+    }
+}
+
+fn eval_if_expression(ie: IfExpression) -> Object {
+    let condition = eval_expression(*ie.condition);
+    if is_truthy(condition) {
+        eval_statements(ie.consequence.statements)
+    } else if let Some(a) = ie.alternative {
+        eval_statements(a.statements)
+    } else {
+        NULL_OBJ
     }
 }
 
@@ -130,8 +155,6 @@ mod tests {
     use crate::object::Object;
     use crate::parser::Parser;
 
-    use super::NULL_OBJ;
-
     fn test_eval(input: &str) -> Option<Object> {
         let l = Lexer::new(input);
         let mut p = Parser::new(l);
@@ -139,16 +162,33 @@ mod tests {
         eval(program)
     }
 
-    fn test_integer_object(obj: &Object, expected: i64) {
+    fn test_integer_object(
+        obj: &Option<Object>,
+        expected: i64,
+        input: &str,
+        failures: &mut Vec<String>,
+    ) {
         match obj {
-            Object::Integer(io) => {
-                assert_eq!(
-                    io.value, expected,
-                    "object has wrong value, got={}, want={}",
-                    io.value, expected
-                );
+            Some(Object::Integer(io)) => {
+                if io.value != expected {
+                    failures.push(format!(
+                        "input='{}': object has wrong value, got={}, want={}",
+                        input, io.value, expected
+                    ));
+                }
             }
-            _ => panic!("object is not Integer, got={:?}", obj),
+            Some(other) => {
+                failures.push(format!(
+                    "input='{}': object is not Integer, got={:?}",
+                    input, other
+                ));
+            }
+            None => {
+                failures.push(format!(
+                    "input='{}': object is not Integer, got=<nil>",
+                    input
+                ));
+            }
         }
     }
 
@@ -185,13 +225,14 @@ mod tests {
             ("(5 + 10 * 2 + 15 / 3) * 2 + -10", 50),
         ];
 
-        for (input, expected) in tests {
+        let mut failures: Vec<String> = Vec::new();
+
+        for (input, expected) in &tests {
             let evaluated = test_eval(input);
-            match evaluated {
-                Some(e) => test_integer_object(&e, expected),
-                None => panic!("eval returned None for input: {}", input),
-            }
+            test_integer_object(&evaluated, *expected, input, &mut failures);
         }
+
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
     }
 
     #[test]
@@ -241,33 +282,44 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_if_else_expressions() {
-        let tests = vec![
-            ("if (true) { 10 }", Object::new_integer(10)),
-            ("if (false) { 10 }", NULL_OBJ),
-            ("if (1) { 10 }", Object::new_integer(10)),
-            ("if (1 < 2) { 10 }", Object::new_integer(10)),
-            ("if (1 > 2) { 10 }", NULL_OBJ),
-            ("if (1 > 2) { 10 } else { 20 }", Object::new_integer(20)),
-            ("if (1 < 2) { 10 } else { 20 }", Object::new_integer(10)),
-        ];
-
-        for (input, expected) in tests {
-            let evaluated = test_eval(input).expect("AHMAN");
-            match expected {
-                Object::Integer(io) => test_integer_object(&evaluated, io.value),
-                Object::Null(_) => test_null_object(&evaluated),
-                _ => panic!("unexpected expected type for input: {}", input),
+    fn test_null_object(obj: &Option<Object>, input: &str, failures: &mut Vec<String>) {
+        match obj {
+            Some(Object::Null(_)) | None => {}
+            Some(other) => {
+                failures.push(format!(
+                    "input='{}': object is not NULL, got={:?}",
+                    input, other
+                ));
             }
         }
     }
+    #[test]
+    fn test_if_else_expressions() {
+        enum Expected {
+            Int(i64),
+            Null,
+        }
 
-    fn test_null_object(obj: &Object) {
-        assert!(
-            matches!(obj, Object::Null(_)),
-            "object is not NULL, got={:?}",
-            obj
-        );
+        let tests = vec![
+            ("if (true) { 10 }", Expected::Int(10)),
+            ("if (false) { 10 }", Expected::Null),
+            ("if (1) { 10 }", Expected::Int(10)),
+            ("if (1 < 2) { 10 }", Expected::Int(10)),
+            ("if (1 > 2) { 10 }", Expected::Null),
+            ("if (1 > 2) { 10 } else { 20 }", Expected::Int(20)),
+            ("if (1 < 2) { 10 } else { 20 }", Expected::Int(10)),
+        ];
+
+        let mut failures: Vec<String> = Vec::new();
+
+        for (input, expected) in &tests {
+            let evaluated = test_eval(input);
+            match expected {
+                Expected::Int(i) => test_integer_object(&evaluated, *i, input, &mut failures),
+                Expected::Null => test_null_object(&evaluated, input, &mut failures),
+            }
+        }
+
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
     }
 }
