@@ -36,6 +36,12 @@ fn precedences(t: &TokenType) -> Option<Precedence> {
     }
 }
 
+enum ExpectedLiteral {
+    Int(i64),
+    Str(String),
+    Boolean(bool),
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Default)]
 pub struct Parser {
@@ -788,12 +794,6 @@ mod tests {
         }
 
         true
-    }
-
-    enum ExpectedLiteral {
-        Int(i64),
-        Str(String),
-        Boolean(bool),
     }
 
     fn test_literal_expression(exp: &ast::Expression, expected: ExpectedLiteral) -> bool {

@@ -1,5 +1,5 @@
 use crate::ast::{Expression, ExpressionStatement, Program, Statement};
-use crate::object::{BooleanObject, IntegerObject, NullObject, Object, ObjectType};
+use crate::object::{BooleanObject, IntegerObject, NullObject, Object};
 
 const CONST_TRUE: BooleanObject = BooleanObject { value: true };
 const CONST_FALSE: BooleanObject = BooleanObject { value: false };
@@ -130,6 +130,8 @@ mod tests {
     use crate::object::Object;
     use crate::parser::Parser;
 
+    use super::NULL_OBJ;
+
     fn test_eval(input: &str) -> Option<Object> {
         let l = Lexer::new(input);
         let mut p = Parser::new(l);
@@ -237,5 +239,35 @@ mod tests {
             let evaluated = test_eval(input);
             test_boolean_object(evaluated, expected);
         }
+    }
+
+    #[test]
+    fn test_if_else_expressions() {
+        let tests = vec![
+            ("if (true) { 10 }", Object::new_integer(10)),
+            ("if (false) { 10 }", NULL_OBJ),
+            ("if (1) { 10 }", Object::new_integer(10)),
+            ("if (1 < 2) { 10 }", Object::new_integer(10)),
+            ("if (1 > 2) { 10 }", NULL_OBJ),
+            ("if (1 > 2) { 10 } else { 20 }", Object::new_integer(20)),
+            ("if (1 < 2) { 10 } else { 20 }", Object::new_integer(10)),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input).expect("AHMAN");
+            match expected {
+                Object::Integer(io) => test_integer_object(&evaluated, io.value),
+                Object::Null(_) => test_null_object(&evaluated),
+                _ => panic!("unexpected expected type for input: {}", input),
+            }
+        }
+    }
+
+    fn test_null_object(obj: &Object) {
+        assert!(
+            matches!(obj, Object::Null(_)),
+            "object is not NULL, got={:?}",
+            obj
+        );
     }
 }

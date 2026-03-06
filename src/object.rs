@@ -38,6 +38,10 @@ impl Object {
             _ => {todo!()}
         }
     }
+
+    pub fn new_integer(val: i64) -> Object {
+        Object::Integer(IntegerObject { value: val })
+    }
 }
 
 
