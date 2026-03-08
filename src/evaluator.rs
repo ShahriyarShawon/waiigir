@@ -9,26 +9,34 @@ const TRUE_OBJ: Object = Object::Boolean(CONST_TRUE);
 const FALSE_OBJ: Object = Object::Boolean(CONST_FALSE);
 const NULL_OBJ: Object = Object::Null(CONST_NULL);
 
+fn is_error(obj: &Object) -> bool {
+    matches!(obj, Object::Error(_))
+}
+
 pub fn eval(program: Program) -> Option<Object> {
-    // Some(eval_statements(program.statements))
-    let mut o: Object = Object::Integer(IntegerObject { value: 0 });
+    let mut result: Object = Object::Integer(IntegerObject { value: 0 });
 
     for s in program.statements {
-        o = eval_statement(s);
-        if let Object::Return(rs) = o {
-            return Some(*rs.value);
+        result = eval_statement(s);
+        match result {
+            Object::Return(rs) => return Some(*rs.value),
+            Object::Error(eo) => return Some(Object::Error(eo)),
+            _ => {}
         }
     }
 
-    Some(o)
+    Some(result)
 }
 
 fn eval_statement(statement: Statement) -> Object {
-    let o = match statement {
+    let result = match statement {
         Statement::Expression(es) => eval_expression(es.expression.unwrap()),
         Statement::Block(bs) => eval_block_statement(Statement::Block(bs)),
         Statement::Return(rs) => {
             let val = eval_expression(rs.return_value.expect("return value missing"));
+            if is_error(&val) {
+                return val;
+            }
             return Object::Return(ReturnValue {
                 value: Box::new(val),
             });
@@ -36,7 +44,7 @@ fn eval_statement(statement: Statement) -> Object {
         _ => return NULL_OBJ,
     };
 
-    o
+    result
 }
 
 fn eval_block_statement(statement: Statement) -> Object {
@@ -44,7 +52,7 @@ fn eval_block_statement(statement: Statement) -> Object {
     if let Statement::Block(bs) = statement {
         for s in bs.statements {
             result = eval_statement(s);
-            if let Object::Return(_) = &result {
+            if let Object::Return(_) | Object::Error(_) = &result {
                 return result;
             }
         }
@@ -65,12 +73,22 @@ fn eval_expression(e: Expression) -> Object {
         },
         Expression::Prefix(pe) => {
             let right = eval_expression(*pe.right);
+            if is_error(&right) {
+                return right;
+            }
             eval_prefix_expression(&pe.operator, right)
         }
         Expression::Infix(ie) => {
             let left = eval_expression(*ie.left);
+            if is_error(&left) {
+                return left;
+            }
+
             let right = eval_expression(*ie.right);
-            eval_infix_expression(&ie.operator, left, right)
+            if is_error(&right) {
+                return right;
+            }
+            eval_infix_expression(&ie.operator, &left, &right)
         }
         Expression::If(ie) => eval_if_expression(ie),
         _ => NULL_OBJ,
@@ -87,6 +105,10 @@ fn is_truthy(o: Object) -> bool {
 
 fn eval_if_expression(ie: IfExpression) -> Object {
     let condition = eval_expression(*ie.condition);
+    if is_error(&condition) {
+        return condition;
+    }
+
     if is_truthy(condition) {
         eval_block_statement(Statement::Block(*ie.consequence))
     } else if let Some(a) = ie.alternative {
@@ -96,18 +118,31 @@ fn eval_if_expression(ie: IfExpression) -> Object {
     }
 }
 
-fn eval_infix_expression(operator: &str, left: Object, right: Object) -> Object {
-    match (left, right, operator) {
-        (Object::Integer(lio), Object::Integer(rio), _) => {
-            eval_integer_infix_expression(operator, lio.value, rio.value)
+fn eval_infix_expression(operator: &str, left: &Object, right: &Object) -> Object {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => {
+            eval_integer_infix_expression(operator, l.value, r.value)
         }
-        (Object::Boolean(lio), Object::Boolean(rio), "==") => Object::Boolean(BooleanObject {
-            value: lio.value == rio.value,
-        }),
-        (Object::Boolean(lio), Object::Boolean(rio), "!=") => Object::Boolean(BooleanObject {
-            value: lio.value != rio.value,
-        }),
-        _ => NULL_OBJ,
+        (Object::Boolean(l), Object::Boolean(r)) => match operator {
+            "==" => Object::Boolean(BooleanObject {
+                value: l.value == r.value,
+            }),
+            "!=" => Object::Boolean(BooleanObject {
+                value: l.value != r.value,
+            }),
+            _ => Object::new_error(format!(
+                "unknown operator: {} {} {}",
+                left.type_name(),
+                operator,
+                right.type_name()
+            )),
+        },
+        _ => Object::new_error(format!(
+            "type mismatch: {} {} {}",
+            left.type_name(),
+            operator,
+            right.type_name()
+        )),
     }
 }
 
@@ -139,14 +174,14 @@ fn eval_integer_infix_expression(operator: &str, left: i64, right: i64) -> Objec
             value: left != right,
         }),
 
-        _ => NULL_OBJ,
+        _ => Object::new_error(format!("unknown operator: int {} int", operator)),
     }
 }
 fn eval_prefix_expression(operator: &str, right: Object) -> Object {
     match operator {
         "!" => eval_bang_operator_expression(right),
         "-" => eval_minus_prefix_operator(right),
-        _ => Object::Null(CONST_NULL),
+        _ => Object::new_error(format!("unknown operator: {}{:?}", operator, right)),
     }
 }
 
@@ -167,7 +202,7 @@ fn eval_minus_prefix_operator(right: Object) -> Object {
             let value = io.value;
             Object::Integer(IntegerObject { value: -value })
         }
-        _ => NULL_OBJ,
+        _ => Object::new_error(format!("unknown operator: -{}", right.type_name())),
     }
 }
 #[cfg(test)]
@@ -360,6 +395,54 @@ mod tests {
         for (input, expected) in &tests {
             let evaluated = test_eval(input);
             test_integer_object(&evaluated, *expected, input, &mut failures);
+        }
+
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+    }
+    #[test]
+    fn test_error_handling() {
+        let tests = vec![
+            ("5 + true;", "type mismatch: INTEGER + BOOLEAN"),
+            ("5 + true; 5;", "type mismatch: INTEGER + BOOLEAN"),
+            ("-true", "unknown operator: -BOOLEAN"),
+            ("true + false;", "unknown operator: BOOLEAN + BOOLEAN"),
+            ("5; true + false; 5", "unknown operator: BOOLEAN + BOOLEAN"),
+            (
+                "if (10 > 1) { true + false; }",
+                "unknown operator: BOOLEAN + BOOLEAN",
+            ),
+            (
+                "if (10 > 1) { if (10 > 1) { return true + false; } return 1; }",
+                "unknown operator: BOOLEAN + BOOLEAN",
+            ),
+        ];
+
+        let mut failures: Vec<String> = Vec::new();
+
+        for (input, expected_message) in &tests {
+            let evaluated = test_eval(input);
+            match &evaluated {
+                Some(Object::Error(err)) => {
+                    if &err.message != expected_message {
+                        failures.push(format!(
+                            "input='{}': wrong error message, expected={}, got={}",
+                            input, expected_message, err.message
+                        ));
+                    }
+                }
+                Some(other) => {
+                    failures.push(format!(
+                        "input='{}': no error object returned, got={:?}",
+                        input, other
+                    ));
+                }
+                None => {
+                    failures.push(format!(
+                        "input='{}': no error object returned, got=<nil>",
+                        input
+                    ));
+                }
+            }
         }
 
         assert!(failures.is_empty(), "\n{}", failures.join("\n"));

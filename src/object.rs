@@ -4,6 +4,7 @@ pub enum Object {
     Boolean(BooleanObject),
     Return(ReturnValue),
     Null(NullObject),
+    Error(ErrorObject),
 }
 
 #[allow(non_snake_case)]
@@ -13,6 +14,7 @@ impl Object {
             Object::Integer(io) => format!("{}", io.value),
             Object::Boolean(bo) => format!("{}", bo.value),
             Object::Return(ro) => format!("{:?}", ro.value),
+            Object::Error(eo) => format!("{}", eo.message),
             Object::Null(_) => String::from("null"),
         }
     }
@@ -20,22 +22,40 @@ impl Object {
     pub fn new_integer(val: i64) -> Object {
         Object::Integer(IntegerObject { value: val })
     }
-}
 
+    pub fn new_error(message: String) -> Object {
+        Object::Error(ErrorObject { message })
+    }
+
+    pub fn type_name(&self) -> &str {
+        match self {
+            Object::Integer(_) => "INTEGER",
+            Object::Boolean(_) => "BOOLEAN",
+            Object::Null(_) => "NULL",
+            Object::Return(_) => "RETURN",
+            Object::Error(_) => "ERROR",
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct IntegerObject {
-    pub value: i64
+    pub value: i64,
 }
 
 #[derive(Debug)]
 pub struct BooleanObject {
-    pub value: bool 
+    pub value: bool,
 }
 
 #[derive(Debug)]
-pub struct ReturnValue{
-    pub value: Box<Object>
+pub struct ReturnValue {
+    pub value: Box<Object>,
+}
+
+#[derive(Debug)]
+pub struct ErrorObject {
+    pub message: String,
 }
 
 #[derive(Debug)]
