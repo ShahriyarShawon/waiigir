@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Object {
     Integer(IntegerObject),
     Boolean(BooleanObject),
@@ -38,25 +38,25 @@ impl Object {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IntegerObject {
     pub value: i64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BooleanObject {
     pub value: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReturnValue {
     pub value: Box<Object>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ErrorObject {
     pub message: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NullObject {}

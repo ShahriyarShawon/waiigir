@@ -14,10 +14,13 @@ impl Environment {
         }
     }
 
-    pub fn get(&self, key: String) -> Option<&Object> {
-        self.store.get(&key)
+    pub fn get(&self, key: &str) -> Option<Object> {
+        match self.store.get(key) {
+            Some(o) => Some(o.clone()),
+            None => None
+        }
     }
-    pub fn set(&mut self, key: String, val: Object) -> &mut Object {
-        self.store.entry(key).or_insert(val)
+    pub fn set(&mut self, key: &str, val: Object) -> &mut Object {
+        self.store.entry(String::from(key)).or_insert(val)
     }
 }

@@ -1,4 +1,5 @@
-use crate::ast::{Expression, IfExpression, Program, Statement};
+use crate::ast::{Expression, IdentifierExpression, IfExpression, Program, Statement};
+use crate::environment::Environment;
 use crate::object::{BooleanObject, IntegerObject, NullObject, Object, ReturnValue};
 
 const CONST_TRUE: BooleanObject = BooleanObject { value: true };
@@ -13,11 +14,11 @@ fn is_error(obj: &Object) -> bool {
     matches!(obj, Object::Error(_))
 }
 
-pub fn eval(program: Program) -> Option<Object> {
+pub fn eval(program: Program, env: &mut Environment) -> Option<Object> {
     let mut result: Object = Object::Integer(IntegerObject { value: 0 });
 
     for s in program.statements {
-        result = eval_statement(s);
+        result = eval_statement(s, env);
         match result {
             Object::Return(rs) => return Some(*rs.value),
             Object::Error(eo) => return Some(Object::Error(eo)),
@@ -28,20 +29,27 @@ pub fn eval(program: Program) -> Option<Object> {
     Some(result)
 }
 
-fn eval_statement(statement: Statement) -> Object {
+fn eval_statement(statement: Statement, env: &mut Environment) -> Object {
     let result = match statement {
         Statement::Let(ls) => {
-            let val = eval_expression(ls.value.unwrap());
+            let val = eval_expression(ls.value.unwrap(), env);
             if is_error(&val) {
                 return val;
             }
 
-            todo!()
-        },
-        Statement::Expression(es) => eval_expression(es.expression.unwrap()),
-        Statement::Block(bs) => eval_block_statement(Statement::Block(bs)),
+            env.set(&ls.name.value, val);
+            match env.get(&ls.name.value) {
+                Some(v) => v,
+                None => Object::new_error(format!(
+                    "Supposedely added ikdentifier to environment, but retrieving failed: {}",
+                    ls.name.value
+                )),
+            }
+        }
+        Statement::Expression(es) => eval_expression(es.expression.unwrap(), env),
+        Statement::Block(bs) => eval_block_statement(Statement::Block(bs), env),
         Statement::Return(rs) => {
-            let val = eval_expression(rs.return_value.expect("return value missing"));
+            let val = eval_expression(rs.return_value.expect("return value missing"), env);
             if is_error(&val) {
                 return val;
             }
@@ -55,11 +63,11 @@ fn eval_statement(statement: Statement) -> Object {
     result
 }
 
-fn eval_block_statement(statement: Statement) -> Object {
+fn eval_block_statement(statement: Statement, env: &mut Environment) -> Object {
     let mut result: Object = Object::Integer(IntegerObject { value: 0 });
     if let Statement::Block(bs) = statement {
         for s in bs.statements {
-            result = eval_statement(s);
+            result = eval_statement(s, env);
             if let Object::Return(_) | Object::Error(_) = &result {
                 return result;
             }
@@ -69,8 +77,16 @@ fn eval_block_statement(statement: Statement) -> Object {
     result
 }
 
-fn eval_expression(e: Expression) -> Object {
+fn eval_identifier(ie: IdentifierExpression, env: &mut Environment) -> Object {
+    match env.get(&ie.value) {
+        Some(v) => v,
+        None => Object::new_error(format!("identifier not found: {}", ie.value)),
+    }
+}
+
+fn eval_expression(e: Expression, env: &mut Environment) -> Object {
     match e {
+        Expression::Identifier(ie) => eval_identifier(ie, env),
         Expression::Integer(il) => {
             let io = IntegerObject { value: il.value };
             Object::Integer(io)
@@ -80,25 +96,25 @@ fn eval_expression(e: Expression) -> Object {
             false => FALSE_OBJ,
         },
         Expression::Prefix(pe) => {
-            let right = eval_expression(*pe.right);
+            let right = eval_expression(*pe.right, env);
             if is_error(&right) {
                 return right;
             }
             eval_prefix_expression(&pe.operator, right)
         }
         Expression::Infix(ie) => {
-            let left = eval_expression(*ie.left);
+            let left = eval_expression(*ie.left, env);
             if is_error(&left) {
                 return left;
             }
 
-            let right = eval_expression(*ie.right);
+            let right = eval_expression(*ie.right, env);
             if is_error(&right) {
                 return right;
             }
             eval_infix_expression(&ie.operator, &left, &right)
         }
-        Expression::If(ie) => eval_if_expression(ie),
+        Expression::If(ie) => eval_if_expression(ie, env),
         _ => NULL_OBJ,
     }
 }
@@ -111,16 +127,16 @@ fn is_truthy(o: Object) -> bool {
     }
 }
 
-fn eval_if_expression(ie: IfExpression) -> Object {
-    let condition = eval_expression(*ie.condition);
+fn eval_if_expression(ie: IfExpression, env: &mut Environment) -> Object {
+    let condition = eval_expression(*ie.condition, env);
     if is_error(&condition) {
         return condition;
     }
 
     if is_truthy(condition) {
-        eval_block_statement(Statement::Block(*ie.consequence))
+        eval_block_statement(Statement::Block(*ie.consequence), env)
     } else if let Some(a) = ie.alternative {
-        eval_block_statement(Statement::Block(*a))
+        eval_block_statement(Statement::Block(*a), env)
     } else {
         NULL_OBJ
     }
@@ -215,6 +231,7 @@ fn eval_minus_prefix_operator(right: Object) -> Object {
 }
 #[cfg(test)]
 mod tests {
+    use crate::environment::Environment;
     use crate::evaluator::eval;
     use crate::lexer::Lexer;
     use crate::object::Object;
@@ -224,7 +241,8 @@ mod tests {
         let l = Lexer::new(input);
         let mut p = Parser::new(l);
         let program = p.parse_program();
-        eval(program)
+        let mut env = Environment::new();
+        eval(program, &mut env)
     }
 
     fn test_integer_object(
@@ -423,7 +441,7 @@ mod tests {
                 "if (10 > 1) { if (10 > 1) { return true + false; } return 1; }",
                 "unknown operator: BOOLEAN + BOOLEAN",
             ),
-            ("foobar", "identifier not found: foobar")
+            ("foobar", "identifier not found: foobar"),
         ];
 
         let mut failures: Vec<String> = Vec::new();

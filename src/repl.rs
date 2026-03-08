@@ -1,3 +1,4 @@
+use crate::environment::Environment;
 use crate::evaluator;
 use crate::lexer;
 use crate::parser;
@@ -7,6 +8,7 @@ const PROMPT: &str = ">> ";
 
 pub fn start() {
     let mut buffer = String::new();
+    let mut env = Environment::new();
 
     loop {
         // eprint so it flushes io
@@ -25,12 +27,10 @@ pub fn start() {
             continue;
         }
 
-        // println!("{}", program.to_string());
-        let evaluated = evaluator::eval(program);
-        match evaluated {
-            Some(e) => println!("{}", e.Inspect()),
-            _ => todo!(),
-        }
+        let evaluated = evaluator::eval(program, &mut env);
+        if let Some(e) = evaluated {
+            println!("{}", e.Inspect());
+        };
     }
 
     fn print_parser_errors(parser: &parser::Parser) {
