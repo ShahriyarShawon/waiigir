@@ -30,6 +30,14 @@ pub fn eval(program: Program) -> Option<Object> {
 
 fn eval_statement(statement: Statement) -> Object {
     let result = match statement {
+        Statement::Let(ls) => {
+            let val = eval_expression(ls.value.unwrap());
+            if is_error(&val) {
+                return val;
+            }
+
+            todo!()
+        },
         Statement::Expression(es) => eval_expression(es.expression.unwrap()),
         Statement::Block(bs) => eval_block_statement(Statement::Block(bs)),
         Statement::Return(rs) => {
@@ -415,6 +423,7 @@ mod tests {
                 "if (10 > 1) { if (10 > 1) { return true + false; } return 1; }",
                 "unknown operator: BOOLEAN + BOOLEAN",
             ),
+            ("foobar", "identifier not found: foobar")
         ];
 
         let mut failures: Vec<String> = Vec::new();
@@ -443,6 +452,25 @@ mod tests {
                     ));
                 }
             }
+        }
+
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn test_let_statements() {
+        let tests = vec![
+            ("let a = 5; a;", 5),
+            ("let a = 5 * 5; a;", 25),
+            ("let a = 5; let b = a; b;", 5),
+            ("let a = 5; let b = a; let c = a + b + 5; c;", 15),
+        ];
+
+        let mut failures: Vec<String> = Vec::new();
+
+        for (input, expected) in &tests {
+            let evaluated = test_eval(input);
+            test_integer_object(&evaluated, *expected, input, &mut failures);
         }
 
         assert!(failures.is_empty(), "\n{}", failures.join("\n"));
