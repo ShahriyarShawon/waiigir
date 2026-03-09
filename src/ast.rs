@@ -20,7 +20,7 @@ impl Program {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Statement {
     Let(LetStatement),
     Return(ReturnStatement),
@@ -81,7 +81,7 @@ impl Node for Statement {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct LetStatement {
     pub token: token::Token,
     pub name: IdentifierExpression,
@@ -89,28 +89,28 @@ pub struct LetStatement {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ReturnStatement {
     pub token: token::Token,
     pub return_value: Option<Expression>,
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ExpressionStatement {
     pub token: token::Token,
     pub expression: Option<Expression>,
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct BlockStatement {
     pub token: token::Token,
     pub statements: Vec<Statement>,
 }
 
 impl BlockStatement {
-    fn to_string(&self) -> String {
+    pub fn to_string(&self) -> String {
         let mut out = String::new();
 
         for s in &self.statements {
@@ -121,7 +121,7 @@ impl BlockStatement {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub enum Expression {
     #[default]
     Default,
@@ -186,7 +186,7 @@ impl Node for IdentifierExpression {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct PrefixExpression {
     pub token: token::Token,
     pub operator: String,
@@ -207,7 +207,7 @@ impl Node for PrefixExpression {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct InfixExpression {
     pub token: token::Token,
     pub left: Box<Expression>,
@@ -234,7 +234,7 @@ impl Node for InfixExpression {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct IntegerLiteral {
     pub token: token::Token,
     pub value: i64,
@@ -252,7 +252,7 @@ impl Node for IntegerLiteral {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct BooleanExpression {
     pub token: token::Token,
     pub value: bool,
@@ -270,7 +270,7 @@ impl Node for BooleanExpression {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct IfExpression {
     pub token: token::Token,
     pub condition: Box<Expression>,
@@ -300,7 +300,7 @@ impl Node for IfExpression {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct FunctionLiteral {
     pub token: token::Token,
     pub parameters: Vec<IdentifierExpression>,
@@ -328,7 +328,7 @@ impl FunctionLiteral {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct CallExpression {
     pub token: token::Token,
     pub function: Box<Expression>,

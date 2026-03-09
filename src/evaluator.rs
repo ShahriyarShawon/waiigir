@@ -1,6 +1,10 @@
-use crate::ast::{Expression, IdentifierExpression, IfExpression, Program, Statement};
+use crate::ast::{
+    BlockStatement, Expression, IdentifierExpression, IfExpression, Program, Statement,
+};
 use crate::environment::Environment;
-use crate::object::{BooleanObject, IntegerObject, NullObject, Object, ReturnValue};
+use crate::object::{
+    BooleanObject, FunctionObject, IntegerObject, NullObject, Object, ReturnValue,
+};
 
 const CONST_TRUE: BooleanObject = BooleanObject { value: true };
 const CONST_FALSE: BooleanObject = BooleanObject { value: false };
@@ -30,6 +34,7 @@ pub fn eval(program: Program, env: &mut Environment) -> Option<Object> {
 }
 
 fn eval_statement(statement: Statement, env: &mut Environment) -> Object {
+    eprintln!("TRACE eval_statement: {:?}", statement);
     let result = match statement {
         Statement::Let(ls) => {
             let val = eval_expression(ls.value.unwrap(), env);
@@ -47,7 +52,7 @@ fn eval_statement(statement: Statement, env: &mut Environment) -> Object {
             }
         }
         Statement::Expression(es) => eval_expression(es.expression.unwrap(), env),
-        Statement::Block(bs) => eval_block_statement(Statement::Block(bs), env),
+        Statement::Block(bs) => eval_block_statement(bs, env),
         Statement::Return(rs) => {
             let val = eval_expression(rs.return_value.expect("return value missing"), env);
             if is_error(&val) {
@@ -63,14 +68,13 @@ fn eval_statement(statement: Statement, env: &mut Environment) -> Object {
     result
 }
 
-fn eval_block_statement(statement: Statement, env: &mut Environment) -> Object {
-    let mut result: Object = Object::Integer(IntegerObject { value: 0 });
-    if let Statement::Block(bs) = statement {
-        for s in bs.statements {
-            result = eval_statement(s, env);
-            if let Object::Return(_) | Object::Error(_) = &result {
-                return result;
-            }
+fn eval_block_statement(block: BlockStatement, env: &mut Environment) -> Object {
+    eprintln!("TRACE eval_block: {:?}", block);
+    let mut result: Object = NULL_OBJ;
+    for s in block.statements {
+        result = eval_statement(s, env);
+        if let Object::Return(_) | Object::Error(_) = &result {
+            return result;
         }
     }
 
@@ -84,8 +88,71 @@ fn eval_identifier(ie: IdentifierExpression, env: &mut Environment) -> Object {
     }
 }
 
+fn eval_expressions(exps: Vec<Expression>, env: &mut Environment) -> Vec<Object> {
+    let mut results: Vec<Object> = Vec::new();
+    for e in exps {
+        let evaluated = eval_expression(e, env);
+        if is_error(&evaluated) {
+            return vec![evaluated];
+        }
+        results.push(evaluated);
+    }
+
+    results
+}
+
+fn apply_function(func: Object, args: Vec<Object>) -> Object {
+    match func {
+        Object::Function(fo) => {
+            let mut extended_env = extend_function_env(&fo, args);
+            let evaluated = eval_block_statement(fo.body, &mut extended_env);
+            return unwrap_return_value(evaluated);
+        }
+
+        _ => Object::new_error(format!("not a function: {:?}", func)),
+    }
+}
+
+fn extend_function_env(func: &FunctionObject, args: Vec<Object>) -> Environment {
+    let mut env = Environment::new_enclosed_environment(Box::new(func.env.clone()));
+    for (index, ident) in func.parameters.iter().enumerate() {
+        env.set(&ident.value, args[index].clone());
+    }
+
+    env
+}
+
+fn unwrap_return_value(obj: Object) -> Object {
+    match obj {
+        Object::Return(ro) => *ro.value,
+        _ => obj,
+    }
+}
+
 fn eval_expression(e: Expression, env: &mut Environment) -> Object {
+    eprintln!("TRACE eval_expression: {:?}", e); // add this
     match e {
+        Expression::Call(ce) => {
+            let function = eval_expression(*ce.function, env);
+            if is_error(&function) {
+                return function;
+            }
+            let args = eval_expressions(ce.arguments, env);
+            if args.len() == 1 && is_error(&args[0]) {
+                return args[0].clone();
+            }
+
+            return apply_function(function, args);
+        }
+        Expression::Function(fl) => {
+            let params = fl.parameters;
+            let body = fl.body;
+            Object::Function(FunctionObject {
+                parameters: params,
+                body,
+                env: env.clone(),
+            })
+        }
         Expression::Identifier(ie) => eval_identifier(ie, env),
         Expression::Integer(il) => {
             let io = IntegerObject { value: il.value };
@@ -134,9 +201,9 @@ fn eval_if_expression(ie: IfExpression, env: &mut Environment) -> Object {
     }
 
     if is_truthy(condition) {
-        eval_block_statement(Statement::Block(*ie.consequence), env)
+        eval_block_statement(*ie.consequence, env)
     } else if let Some(a) = ie.alternative {
-        eval_block_statement(Statement::Block(*a), env)
+        eval_block_statement(*a, env)
     } else {
         NULL_OBJ
     }
@@ -491,6 +558,84 @@ mod tests {
             test_integer_object(&evaluated, *expected, input, &mut failures);
         }
 
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn test_function_object() {
+        let input = "fn(x) { x + 2; };";
+        let mut failures: Vec<String> = Vec::new();
+
+        let evaluated = test_eval(input);
+
+        let function = match &evaluated {
+            Some(Object::Function(f)) => f,
+            _ => {
+                failures.push(format!("object is not Function, got={:?}", evaluated));
+                assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+                return;
+            }
+        };
+
+        if function.parameters.len() != 1 {
+            failures.push(format!(
+                "function has wrong number of parameters, got={}",
+                function.parameters.len()
+            ));
+        }
+
+        if function.parameters.len() >= 1 && function.parameters[0].value != "x" {
+            failures.push(format!(
+                "parameter is not 'x', got={}",
+                function.parameters[0].value
+            ));
+        }
+
+        let expected_body = "(x + 2)";
+        if function.body.to_string() != expected_body {
+            failures.push(format!(
+                "body is not '{}', got={}",
+                expected_body,
+                function.body.to_string()
+            ));
+        }
+
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn test_function_application() {
+        let tests = vec![
+            ("let identity = fn(x) { x; }; identity(5);", 5),
+            ("let identity = fn(x) { return x; }; identity(5);", 5),
+            ("let double = fn(x) { x * 2; }; double(5);", 10),
+            ("let add = fn(x, y) { x + y; }; add(5, 5);", 10),
+            ("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20),
+            ("fn(x) { x; }(5)", 5),
+        ];
+
+        let mut failures: Vec<String> = Vec::new();
+
+        for (input, expected) in &tests {
+            let evaluated = test_eval(input);
+            test_integer_object(&evaluated, *expected, input, &mut failures);
+        }
+
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn test_closures() {
+        let input = "
+let newAdder = fn(x) {
+    fn(y) { x + y };
+};
+let addTwo = newAdder(2);
+addTwo(2);";
+
+        let mut failures: Vec<String> = Vec::new();
+        let evaluated = test_eval(input);
+        test_integer_object(&evaluated, 4, input, &mut failures);
         assert!(failures.is_empty(), "\n{}", failures.join("\n"));
     }
 }

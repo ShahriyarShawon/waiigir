@@ -1,5 +1,8 @@
+use crate::{ast::{BlockStatement, IdentifierExpression}, environment::Environment};
+
 #[derive(Debug, Clone)]
 pub enum Object {
+    Function(FunctionObject),
     Integer(IntegerObject),
     Boolean(BooleanObject),
     Return(ReturnValue),
@@ -11,6 +14,13 @@ pub enum Object {
 impl Object {
     pub fn Inspect(&self) -> String {
         match self {
+            Object::Function(fo) => format!("fn ({}) {{\n{}\n}}", 
+                fo.parameters
+                .iter()
+                .map(|f| f.value.clone())
+                .collect::<Vec<String>>()
+                .join(", "), 
+                fo.body.to_string()),
             Object::Integer(io) => format!("{}", io.value),
             Object::Boolean(bo) => format!("{}", bo.value),
             Object::Return(ro) => format!("{:?}", ro.value),
@@ -29,6 +39,7 @@ impl Object {
 
     pub fn type_name(&self) -> &str {
         match self {
+            Object::Function(_) => "FUNCTION",
             Object::Integer(_) => "INTEGER",
             Object::Boolean(_) => "BOOLEAN",
             Object::Null(_) => "NULL",
@@ -36,6 +47,13 @@ impl Object {
             Object::Error(_) => "ERROR",
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionObject {
+    pub parameters: Vec<IdentifierExpression>,
+    pub body: BlockStatement,
+    pub env: Environment
 }
 
 #[derive(Debug, Clone)]
