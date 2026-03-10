@@ -55,11 +55,11 @@ impl Lexer {
         let p = self.position + 1;
         self.read_char();
         loop {
-            self.read_char();
             if self.ch == '"' || self.ch == '\0' {
                 self.read_char();
                 break;
             }
+            self.read_char();
         }
         let end = self.position - 1;
         if end <= p {

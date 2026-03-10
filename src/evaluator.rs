@@ -88,7 +88,7 @@ fn eval_identifier(ie: IdentifierExpression, env: &mut Environment) -> Object {
     let func = get_builtin(&ie.value);
     match func {
         Some(bif) => bif,
-        None => Object::new_error(format!("not a function: {:?}", func))
+        None => Object::new_error(format!("identifier not found: {}", ie.value))
     }
 }
 
