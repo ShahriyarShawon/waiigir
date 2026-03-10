@@ -61,7 +61,12 @@ impl Lexer {
                 break;
             }
         }
-        self.input[p..self.position-1].iter().collect()
+        let end = self.position - 1;
+        if end <= p {
+            String::new()
+        } else {
+            self.input[p..self.position - 1].iter().collect()
+        }
     }
 
     fn lookup_ident(ident: &str) -> TokenType {

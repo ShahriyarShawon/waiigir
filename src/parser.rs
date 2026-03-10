@@ -38,7 +38,7 @@ fn precedences(t: &TokenType) -> Option<Precedence> {
     }
 }
 
-enum ExpectedLiteral {
+pub enum ExpectedLiteral {
     Int(i64),
     Str(String),
     Boolean(bool),

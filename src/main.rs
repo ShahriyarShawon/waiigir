@@ -6,6 +6,7 @@ mod parser;
 mod object;
 mod evaluator;
 mod environment;
+mod builtins;
 
 use crate::token::*;
 

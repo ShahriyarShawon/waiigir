@@ -1,4 +1,9 @@
-use crate::{ast::{BlockStatement, IdentifierExpression}, environment::Environment};
+use crate::{
+    ast::{BlockStatement, IdentifierExpression},
+    environment::Environment,
+};
+
+type BIFO = fn(Vec<Object>) -> Object;
 
 #[derive(Debug, Clone)]
 pub enum Object {
@@ -7,6 +12,7 @@ pub enum Object {
     Boolean(BooleanObject),
     Return(ReturnValue),
     String(StringObject),
+    BuiltInFunction(BuiltInFunctionObject),
     Null(NullObject),
     Error(ErrorObject),
 }
@@ -15,16 +21,19 @@ pub enum Object {
 impl Object {
     pub fn Inspect(&self) -> String {
         match self {
-            Object::Function(fo) => format!("fn ({}) {{\n{}\n}}", 
+            Object::Function(fo) => format!(
+                "fn ({}) {{\n{}\n}}",
                 fo.parameters
-                .iter()
-                .map(|f| f.value.clone())
-                .collect::<Vec<String>>()
-                .join(", "), 
-                fo.body.to_string()),
+                    .iter()
+                    .map(|f| f.value.clone())
+                    .collect::<Vec<String>>()
+                    .join(", "),
+                fo.body.to_string()
+            ),
             Object::Integer(io) => format!("{}", io.value),
             Object::Boolean(bo) => format!("{}", bo.value),
             Object::String(so) => format!("{}", so.value),
+            Object::BuiltInFunction(_bif) => String::from("builtin function"),
             Object::Return(ro) => format!("{:?}", ro.value),
             Object::Error(eo) => format!("{}", eo.message),
             Object::Null(_) => String::from("null"),
@@ -45,8 +54,9 @@ impl Object {
             Object::Integer(_) => "INTEGER",
             Object::Boolean(_) => "BOOLEAN",
             Object::String(_) => "STRING",
-            Object::Null(_) => "NULL",
             Object::Return(_) => "RETURN",
+            Object::BuiltInFunction(_) => "BUILTIN",
+            Object::Null(_) => "NULL",
             Object::Error(_) => "ERROR",
         }
     }
@@ -56,7 +66,7 @@ impl Object {
 pub struct FunctionObject {
     pub parameters: Vec<IdentifierExpression>,
     pub body: BlockStatement,
-    pub env: Environment
+    pub env: Environment,
 }
 
 #[derive(Debug, Clone)]
@@ -77,6 +87,11 @@ pub struct ReturnValue {
 #[derive(Debug, Clone)]
 pub struct StringObject {
     pub value: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct BuiltInFunctionObject {
+    pub function: BIFO,
 }
 
 #[derive(Debug, Clone)]

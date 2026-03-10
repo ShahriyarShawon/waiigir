@@ -5,6 +5,7 @@ use crate::environment::Environment;
 use crate::object::{
     BooleanObject, FunctionObject, IntegerObject, NullObject, Object, ReturnValue, StringObject,
 };
+use crate::builtins::get_builtin;
 
 const CONST_TRUE: BooleanObject = BooleanObject { value: true };
 const CONST_FALSE: BooleanObject = BooleanObject { value: false };
@@ -80,9 +81,14 @@ fn eval_block_statement(block: BlockStatement, env: &mut Environment) -> Object 
 }
 
 fn eval_identifier(ie: IdentifierExpression, env: &mut Environment) -> Object {
-    match env.get(&ie.value) {
-        Some(v) => v,
-        None => Object::new_error(format!("identifier not found: {}", ie.value)),
+    if let Some(v) = env.get(&ie.value) {
+        return v
+    }
+
+    let func = get_builtin(&ie.value);
+    match func {
+        Some(bif) => bif,
+        None => Object::new_error(format!("not a function: {:?}", func))
     }
 }
 
@@ -105,8 +111,10 @@ fn apply_function(func: Object, args: Vec<Object>) -> Object {
             let mut extended_env = extend_function_env(&fo, args);
             let evaluated = eval_block_statement(fo.body, &mut extended_env);
             return unwrap_return_value(evaluated);
-        }
-
+        },
+        Object::BuiltInFunction(bif) => {
+            return (bif.function)(args)
+        },
         _ => Object::new_error(format!("not a function: {:?}", func)),
     }
 }
@@ -312,12 +320,11 @@ fn eval_string_infix_expression(
 
 #[cfg(test)]
 mod tests {
-    use crate::ast;
     use crate::environment::Environment;
     use crate::evaluator::eval;
     use crate::lexer::Lexer;
     use crate::object::Object;
-    use crate::parser::{Parser, check_parser_errors};
+    use crate::parser::{Parser, check_parser_errors, ExpectedLiteral};
 
     fn test_eval(input: &str) -> Option<Object> {
         let l = Lexer::new(input);
@@ -688,6 +695,56 @@ addTwo(2);";
                 }
             }
             _ => failures.push(format!("object is not String, got={:?}", evaluated)),
+        }
+
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn test_builtin_functions() {
+        let tests = vec![
+            (r#"len("")"#, ExpectedLiteral::Int(0)),
+            (r#"len("four")"#, ExpectedLiteral::Int(4)),
+            (r#"len("hello world")"#, ExpectedLiteral::Int(11)),
+            (
+                r#"len(1)"#,
+                ExpectedLiteral::Str("argument to `len` not supported, got INTEGER".to_string()),
+            ),
+            (
+                r#"len("one", "two")"#,
+                ExpectedLiteral::Str("wrong number of arguments. got=2, want=1".to_string()),
+            ),
+        ];
+
+        let mut failures: Vec<String> = Vec::new();
+
+        for (input, expected) in &tests {
+            let evaluated = test_eval(input);
+            match expected {
+                ExpectedLiteral::Int(i) => {
+                    test_integer_object(&evaluated, *i, input, &mut failures);
+                }
+                ExpectedLiteral::Str(s) => match &evaluated {
+                    Some(Object::Error(err)) => {
+                        if &err.message != s {
+                            failures.push(format!(
+                                "input='{}': wrong error message, expected={}, got={}",
+                                input, s, err.message
+                            ));
+                        }
+                    }
+                    Some(other) => {
+                        failures.push(format!(
+                            "input='{}': object is not Error, got={:?}",
+                            input, other
+                        ));
+                    }
+                    None => {
+                        failures.push(format!("input='{}': object is not Error, got=<nil>", input));
+                    }
+                },
+                _ => {}
+            }
         }
 
         assert!(failures.is_empty(), "\n{}", failures.join("\n"));
