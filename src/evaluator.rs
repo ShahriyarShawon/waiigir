@@ -3,7 +3,7 @@ use crate::ast::{
 };
 use crate::environment::Environment;
 use crate::object::{
-    BooleanObject, FunctionObject, IntegerObject, NullObject, Object, ReturnValue,
+    BooleanObject, FunctionObject, IntegerObject, NullObject, Object, ReturnValue, StringObject,
 };
 
 const CONST_TRUE: BooleanObject = BooleanObject { value: true };
@@ -19,7 +19,7 @@ fn is_error(obj: &Object) -> bool {
 }
 
 pub fn eval(program: Program, env: &mut Environment) -> Option<Object> {
-    let mut result: Object = Object::Integer(IntegerObject { value: 0 });
+    let mut result: Object = NULL_OBJ;
 
     for s in program.statements {
         result = eval_statement(s, env);
@@ -34,7 +34,6 @@ pub fn eval(program: Program, env: &mut Environment) -> Option<Object> {
 }
 
 fn eval_statement(statement: Statement, env: &mut Environment) -> Object {
-    eprintln!("TRACE eval_statement: {:?}", statement);
     let result = match statement {
         Statement::Let(ls) => {
             let val = eval_expression(ls.value.unwrap(), env);
@@ -69,7 +68,6 @@ fn eval_statement(statement: Statement, env: &mut Environment) -> Object {
 }
 
 fn eval_block_statement(block: BlockStatement, env: &mut Environment) -> Object {
-    eprintln!("TRACE eval_block: {:?}", block);
     let mut result: Object = NULL_OBJ;
     for s in block.statements {
         result = eval_statement(s, env);
@@ -130,7 +128,6 @@ fn unwrap_return_value(obj: Object) -> Object {
 }
 
 fn eval_expression(e: Expression, env: &mut Environment) -> Object {
-    eprintln!("TRACE eval_expression: {:?}", e); // add this
     match e {
         Expression::Call(ce) => {
             let function = eval_expression(*ce.function, env);
@@ -182,6 +179,7 @@ fn eval_expression(e: Expression, env: &mut Environment) -> Object {
             eval_infix_expression(&ie.operator, &left, &right)
         }
         Expression::If(ie) => eval_if_expression(ie, env),
+        Expression::String(se) => Object::String(StringObject { value: se.value }),
         _ => NULL_OBJ,
     }
 }
@@ -228,6 +226,7 @@ fn eval_infix_expression(operator: &str, left: &Object, right: &Object) -> Objec
                 right.type_name()
             )),
         },
+        (Object::String(l), Object::String(r)) => eval_string_infix_expression(operator, l, r),
         _ => Object::new_error(format!(
             "type mismatch: {} {} {}",
             left.type_name(),
@@ -296,13 +295,29 @@ fn eval_minus_prefix_operator(right: Object) -> Object {
         _ => Object::new_error(format!("unknown operator: -{}", right.type_name())),
     }
 }
+
+fn eval_string_infix_expression(
+    operator: &str,
+    left: &StringObject,
+    right: &StringObject,
+) -> Object {
+    match operator {
+        "+" => Object::String(StringObject {
+            value: format!("{}{}", left.value, right.value),
+        }),
+
+        _ => Object::new_error(format!("unknown operator STRING {} STRING", operator)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::ast;
     use crate::environment::Environment;
     use crate::evaluator::eval;
     use crate::lexer::Lexer;
     use crate::object::Object;
-    use crate::parser::Parser;
+    use crate::parser::{Parser, check_parser_errors};
 
     fn test_eval(input: &str) -> Option<Object> {
         let l = Lexer::new(input);
@@ -509,6 +524,7 @@ mod tests {
                 "unknown operator: BOOLEAN + BOOLEAN",
             ),
             ("foobar", "identifier not found: foobar"),
+            ("\"Hello\" - \"World\"", "unknown operator STRING - STRING"),
         ];
 
         let mut failures: Vec<String> = Vec::new();
@@ -636,6 +652,44 @@ addTwo(2);";
         let mut failures: Vec<String> = Vec::new();
         let evaluated = test_eval(input);
         test_integer_object(&evaluated, 4, input, &mut failures);
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn test_string_literal() {
+        let input = "\"Hello World!\"";
+        let mut failures: Vec<String> = Vec::new();
+
+        let evaluated = test_eval(input);
+
+        match &evaluated {
+            Some(Object::String(s)) => {
+                if s.value != "Hello World!" {
+                    failures.push(format!("string has wrong value, got={}", s.value));
+                }
+            }
+            _ => failures.push(format!("object is not String, got={:?}", evaluated)),
+        }
+
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn test_string_concatenation() {
+        let input = "\"Hello\" + \" \" + \"World!\"";
+        let mut failures: Vec<String> = Vec::new();
+
+        let evaluated = test_eval(input);
+
+        match &evaluated {
+            Some(Object::String(s)) => {
+                if s.value != "Hello World!" {
+                    failures.push(format!("string has wrong value, got={}", s.value));
+                }
+            }
+            _ => failures.push(format!("object is not String, got={:?}", evaluated)),
+        }
+
         assert!(failures.is_empty(), "\n{}", failures.join("\n"));
     }
 }

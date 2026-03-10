@@ -8,6 +8,7 @@ use crate::ast::FunctionLiteral;
 use crate::ast::IdentifierExpression;
 use crate::ast::LetStatement;
 use crate::ast::ReturnStatement;
+use crate::ast::StringLiteral;
 use crate::lexer;
 use crate::token;
 
@@ -407,6 +408,13 @@ impl Parser {
         Some(ast::Expression::Function(lit))
     }
 
+    fn parse_string_literal(&mut self) -> Option<ast::Expression> {
+        Some(ast::Expression::String(StringLiteral {
+            token: self.cur_token.clone(),
+            value: self.cur_token.literal.clone(),
+        }))
+    }
+
     fn cur_token_is(&mut self, t: TokenType) -> bool {
         self.cur_token.token_type == t
     }
@@ -456,6 +464,7 @@ impl Parser {
             TokenType::LPAREN => Some(Parser::parse_grouped_expression),
             TokenType::IF => Some(Parser::parse_if_expression),
             TokenType::FUNCTION => Some(Parser::parse_function_literal),
+            TokenType::STRING => Some(Parser::parse_string_literal),
             _ => None,
         }
     }
@@ -480,25 +489,25 @@ impl Parser {
     }
 }
 
+pub fn check_parser_errors(p: &Parser) {
+    if p.errors.len() == 0 {
+        return;
+    }
+
+    eprintln!("Parser has {} errors", p.errors.len());
+    for e in &p.errors {
+        eprintln!("parser error: {}", e);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use self::ast::Node;
 
     use super::*;
+    use crate::ast::Expression;
     use crate::ast::Statement;
     use crate::lexer::Lexer;
-
-    fn check_parser_errors(p: &Parser) {
-        if p.errors.len() == 0 {
-            return;
-        }
-
-        eprintln!("Parser has {} errors", p.errors.len());
-        for e in &p.errors {
-            eprintln!("parser error: {}", e);
-        }
-        // panic!("Parser had errors");
-    }
 
     fn test_let_statement(s: &Statement, name: &str) -> bool {
         if s.token_literal() != "let" {
@@ -1360,6 +1369,37 @@ mod tests {
             ExpectedLiteral::Int(4),
             "+".to_string(),
             ExpectedLiteral::Int(5),
+        );
+    }
+
+    #[test]
+    fn test_string_literal_expression() {
+        let input = "\"hello world\";";
+        let l = Lexer::new(input);
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        check_parser_errors(&p);
+
+        let stmt = match &program.statements[0] {
+            Statement::Expression(es) => es,
+            _ => panic!(
+                "program.statements[0] is not an ExpressionStatement, got={:?}",
+                program.statements[0]
+            ),
+        };
+
+        let literal = match &stmt.expression {
+            Some(Expression::String(sl)) => sl,
+            _ => panic!(
+                "stmt.expression is not a StringLiteral, got={:?}",
+                stmt.expression
+            ),
+        };
+
+        assert_eq!(
+            literal.value, "hello world",
+            "literal.value not 'hello world', got={}",
+            literal.value
         );
     }
 }

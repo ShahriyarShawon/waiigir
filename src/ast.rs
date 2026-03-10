@@ -133,6 +133,7 @@ pub enum Expression {
     If(IfExpression),
     Function(FunctionLiteral),
     Call(CallExpression),
+    String(StringLiteral),
 }
 
 #[allow(dead_code)]
@@ -352,6 +353,24 @@ impl Node for CallExpression {
         out += &format!("{}({})", self.function.to_string(), args.join(" "));
 
         out
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Default, Clone)]
+pub struct StringLiteral {
+    pub token: token::Token,
+    pub value: String,
+}
+
+#[allow(dead_code)]
+impl Node for StringLiteral {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn to_string(&self) -> String {
+        self.token.literal.clone()
     }
 }
 

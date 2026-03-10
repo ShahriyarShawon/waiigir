@@ -44,20 +44,6 @@ pub enum TokenType {
     TRUE,
     FALSE,
     EQ, 
-    NOT_EQ
+    NOT_EQ,
+    STRING
 }
-
-// pub static ILLEGAL: &str = "ILLEGAL";
-// pub static EOF: &str = "EOF";
-// pub static IDENT: &str = "IDENT";
-// pub static INT: &str = "INT";
-// pub static ASSIGN: &str = "=";
-// pub static PLUS: &str = "+";
-// pub static COMMA: &str = ",";
-// pub static SEMICOLON: &str = ";";
-// pub static LPAREN: &str = "(";
-// pub static RPAREN: &str = ")";
-// pub static LBRACE: &str = "{";
-// pub static RBRACE: &str = "}";
-// pub static FUNCTION: &str = "FUNCTION";
-// pub static LET: &str = "LET";

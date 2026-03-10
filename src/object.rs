@@ -6,6 +6,7 @@ pub enum Object {
     Integer(IntegerObject),
     Boolean(BooleanObject),
     Return(ReturnValue),
+    String(StringObject),
     Null(NullObject),
     Error(ErrorObject),
 }
@@ -23,6 +24,7 @@ impl Object {
                 fo.body.to_string()),
             Object::Integer(io) => format!("{}", io.value),
             Object::Boolean(bo) => format!("{}", bo.value),
+            Object::String(so) => format!("{}", so.value),
             Object::Return(ro) => format!("{:?}", ro.value),
             Object::Error(eo) => format!("{}", eo.message),
             Object::Null(_) => String::from("null"),
@@ -42,6 +44,7 @@ impl Object {
             Object::Function(_) => "FUNCTION",
             Object::Integer(_) => "INTEGER",
             Object::Boolean(_) => "BOOLEAN",
+            Object::String(_) => "STRING",
             Object::Null(_) => "NULL",
             Object::Return(_) => "RETURN",
             Object::Error(_) => "ERROR",
@@ -69,6 +72,11 @@ pub struct BooleanObject {
 #[derive(Debug, Clone)]
 pub struct ReturnValue {
     pub value: Box<Object>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StringObject {
+    pub value: String,
 }
 
 #[derive(Debug, Clone)]
