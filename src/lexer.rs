@@ -110,6 +110,8 @@ impl Lexer {
             '+' => t = Token::new(TokenType::PLUS, String::from(self.ch)),
             '{' => t = Token::new(TokenType::LBRACE, String::from(self.ch)),
             '}' => t = Token::new(TokenType::RBRACE, String::from(self.ch)),
+            '[' => t = Token::new(TokenType::LBRACKET, String::from(self.ch)),
+            ']' => t = Token::new(TokenType::RBRACKET, String::from(self.ch)),
             '!' => {
                 if self.peek_char() == '=' {
                     let cc = self.ch;
@@ -174,6 +176,7 @@ return false;
 10 != 9;
 \"foobar\"
 \"foo bar\"
+[1, 2];
 ";
 
         let tests: Vec<(TokenType, &str)> = vec![
@@ -252,6 +255,13 @@ return false;
             (TokenType::SEMICOLON, ";"),
             (TokenType::STRING, "foobar"),
             (TokenType::STRING, "foo bar"),
+            (TokenType::LBRACKET, "["),
+            (TokenType::INT, "1"),
+            (TokenType::COMMA, ","),
+            (TokenType::INT, "2"),
+            (TokenType::RBRACKET, "]"),
+            (TokenType::SEMICOLON, ";"),
+            (TokenType::EOF, ""),
             (TokenType::EOF, ""),
         ];
         let mut l = Lexer::new(input);

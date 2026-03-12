@@ -8,7 +8,7 @@ const PROMPT: &str = ">> ";
 
 pub fn start() {
     let mut buffer = String::new();
-    let mut env = Environment::new();
+    let env = Environment::new();
 
     loop {
         // eprint so it flushes io
@@ -27,7 +27,7 @@ pub fn start() {
             continue;
         }
 
-        let evaluated = evaluator::eval(program, &mut env);
+        let evaluated = evaluator::eval(program, &env);
         if let Some(e) = evaluated {
             println!("{}", e.Inspect());
         };

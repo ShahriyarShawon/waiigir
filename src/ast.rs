@@ -134,6 +134,8 @@ pub enum Expression {
     Function(FunctionLiteral),
     Call(CallExpression),
     String(StringLiteral),
+    Array(ArrayLiteral),
+    Index(IndexExpression)
 }
 
 #[allow(dead_code)]
@@ -152,6 +154,9 @@ impl Node for Expression {
             Expression::If(ie) => ie.to_string(),
             Expression::Function(ie) => ie.to_string(),
             Expression::Call(ie) => ie.to_string(),
+            Expression::String(se) => se.to_string(),
+            Expression::Array(al) => al.to_string(),
+            Expression::Index(ie) => ie.to_string(),
             _ => todo!(),
         }
     }
@@ -371,6 +376,53 @@ impl Node for StringLiteral {
 
     fn to_string(&self) -> String {
         self.token.literal.clone()
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Default, Clone)]
+pub struct ArrayLiteral {
+    pub token: token::Token,
+    pub elements: Vec<Expression>,
+}
+
+#[allow(dead_code)]
+impl Node for ArrayLiteral {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn to_string(&self) -> String {
+        let mut out = String::new();
+        out += &format!(
+            "[{}]",
+            self.elements
+                .iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<String>>()
+                .join(", ")
+        );
+        out
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Default, Clone)]
+pub struct IndexExpression {
+    pub token: token::Token,
+    pub left: Box<Expression>,
+    pub index: Box<Expression>
+}
+
+#[allow(dead_code)]
+impl Node for IndexExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn to_string(&self) -> String {
+        let out = format!("({}[{}])", self.left.to_string(), self.index.to_string());
+        out
     }
 }
 

@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{
     ast::{BlockStatement, IdentifierExpression},
     environment::Environment,
@@ -13,6 +15,7 @@ pub enum Object {
     Return(ReturnValue),
     String(StringObject),
     BuiltInFunction(BuiltInFunctionObject),
+    Array(ArrayObject),
     Null(NullObject),
     Error(ErrorObject),
 }
@@ -34,6 +37,14 @@ impl Object {
             Object::Boolean(bo) => format!("{}", bo.value),
             Object::String(so) => format!("{}", so.value),
             Object::BuiltInFunction(_bif) => String::from("builtin function"),
+            Object::Array(ao) => {
+                let mut out = String::new();
+                let e = ao.elements.iter().map(|o| o.Inspect()).collect::<Vec<String>>().join(", ");
+                out += &format!("[{}]", e);
+
+                out
+
+            },
             Object::Return(ro) => format!("{:?}", ro.value),
             Object::Error(eo) => format!("{}", eo.message),
             Object::Null(_) => String::from("null"),
@@ -56,6 +67,7 @@ impl Object {
             Object::String(_) => "STRING",
             Object::Return(_) => "RETURN",
             Object::BuiltInFunction(_) => "BUILTIN",
+            Object::Array(_) => "ARRAY",
             Object::Null(_) => "NULL",
             Object::Error(_) => "ERROR",
         }
@@ -66,7 +78,7 @@ impl Object {
 pub struct FunctionObject {
     pub parameters: Vec<IdentifierExpression>,
     pub body: BlockStatement,
-    pub env: Environment,
+    pub env: Rc<RefCell<Environment>>,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +104,11 @@ pub struct StringObject {
 #[derive(Debug, Clone)]
 pub struct BuiltInFunctionObject {
     pub function: BIFO,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArrayObject {
+    pub elements: Vec<Object>,
 }
 
 #[derive(Debug, Clone)]

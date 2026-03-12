@@ -1,11 +1,14 @@
 use crate::ast::{
     BlockStatement, Expression, IdentifierExpression, IfExpression, Program, Statement,
 };
+use crate::builtins::get_builtin;
 use crate::environment::Environment;
 use crate::object::{
-    BooleanObject, FunctionObject, IntegerObject, NullObject, Object, ReturnValue, StringObject,
+    ArrayObject, BooleanObject, FunctionObject, IntegerObject, NullObject, Object, ReturnValue,
+    StringObject,
 };
-use crate::builtins::get_builtin;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 const CONST_TRUE: BooleanObject = BooleanObject { value: true };
 const CONST_FALSE: BooleanObject = BooleanObject { value: false };
@@ -13,17 +16,17 @@ const CONST_NULL: NullObject = NullObject {};
 
 const TRUE_OBJ: Object = Object::Boolean(CONST_TRUE);
 const FALSE_OBJ: Object = Object::Boolean(CONST_FALSE);
-const NULL_OBJ: Object = Object::Null(CONST_NULL);
+pub const NULL_OBJ: Object = Object::Null(CONST_NULL);
 
 fn is_error(obj: &Object) -> bool {
     matches!(obj, Object::Error(_))
 }
 
-pub fn eval(program: Program, env: &mut Environment) -> Option<Object> {
+pub fn eval(program: Program, env: &Rc<RefCell<Environment>>) -> Option<Object> {
     let mut result: Object = NULL_OBJ;
 
     for s in program.statements {
-        result = eval_statement(s, env);
+        result = eval_statement(s, &env);
         match result {
             Object::Return(rs) => return Some(*rs.value),
             Object::Error(eo) => return Some(Object::Error(eo)),
@@ -34,7 +37,7 @@ pub fn eval(program: Program, env: &mut Environment) -> Option<Object> {
     Some(result)
 }
 
-fn eval_statement(statement: Statement, env: &mut Environment) -> Object {
+fn eval_statement(statement: Statement, env: &Rc<RefCell<Environment>>) -> Object {
     let result = match statement {
         Statement::Let(ls) => {
             let val = eval_expression(ls.value.unwrap(), env);
@@ -42,14 +45,8 @@ fn eval_statement(statement: Statement, env: &mut Environment) -> Object {
                 return val;
             }
 
-            env.set(&ls.name.value, val);
-            match env.get(&ls.name.value) {
-                Some(v) => v,
-                None => Object::new_error(format!(
-                    "Supposedely added ikdentifier to environment, but retrieving failed: {}",
-                    ls.name.value
-                )),
-            }
+            env.borrow_mut().set(&ls.name.value, val.clone());
+            val
         }
         Statement::Expression(es) => eval_expression(es.expression.unwrap(), env),
         Statement::Block(bs) => eval_block_statement(bs, env),
@@ -68,7 +65,7 @@ fn eval_statement(statement: Statement, env: &mut Environment) -> Object {
     result
 }
 
-fn eval_block_statement(block: BlockStatement, env: &mut Environment) -> Object {
+fn eval_block_statement(block: BlockStatement, env: &Rc<RefCell<Environment>>) -> Object {
     let mut result: Object = NULL_OBJ;
     for s in block.statements {
         result = eval_statement(s, env);
@@ -80,22 +77,22 @@ fn eval_block_statement(block: BlockStatement, env: &mut Environment) -> Object 
     result
 }
 
-fn eval_identifier(ie: IdentifierExpression, env: &mut Environment) -> Object {
-    if let Some(v) = env.get(&ie.value) {
-        return v
+fn eval_identifier(ie: IdentifierExpression, env: &Rc<RefCell<Environment>>) -> Object {
+    if let Some(v) = env.borrow().get(&ie.value) {
+        return v;
     }
 
     let func = get_builtin(&ie.value);
     match func {
         Some(bif) => bif,
-        None => Object::new_error(format!("identifier not found: {}", ie.value))
+        None => Object::new_error(format!("identifier not found: {}", ie.value)),
     }
 }
 
-fn eval_expressions(exps: Vec<Expression>, env: &mut Environment) -> Vec<Object> {
+fn eval_expressions(exps: Vec<Expression>, env: &Rc<RefCell<Environment>>) -> Vec<Object> {
     let mut results: Vec<Object> = Vec::new();
     for e in exps {
-        let evaluated = eval_expression(e, env);
+        let evaluated = eval_expression(e, &env);
         if is_error(&evaluated) {
             return vec![evaluated];
         }
@@ -109,20 +106,18 @@ fn apply_function(func: Object, args: Vec<Object>) -> Object {
     match func {
         Object::Function(fo) => {
             let mut extended_env = extend_function_env(&fo, args);
-            let evaluated = eval_block_statement(fo.body, &mut extended_env);
+            let evaluated = eval_block_statement(fo.body, &extended_env);
             return unwrap_return_value(evaluated);
-        },
-        Object::BuiltInFunction(bif) => {
-            return (bif.function)(args)
-        },
+        }
+        Object::BuiltInFunction(bif) => return (bif.function)(args),
         _ => Object::new_error(format!("not a function: {:?}", func)),
     }
 }
 
-fn extend_function_env(func: &FunctionObject, args: Vec<Object>) -> Environment {
-    let mut env = Environment::new_enclosed_environment(Box::new(func.env.clone()));
+fn extend_function_env(func: &FunctionObject, args: Vec<Object>) -> Rc<RefCell<Environment>>{
+    let env = Environment::new_enclosed_environment(&func.env);
     for (index, ident) in func.parameters.iter().enumerate() {
-        env.set(&ident.value, args[index].clone());
+        env.borrow_mut().set(&ident.value, args[index].clone());
     }
 
     env
@@ -135,14 +130,14 @@ fn unwrap_return_value(obj: Object) -> Object {
     }
 }
 
-fn eval_expression(e: Expression, env: &mut Environment) -> Object {
+fn eval_expression(e: Expression, env: &Rc<RefCell<Environment>>) -> Object {
     match e {
         Expression::Call(ce) => {
-            let function = eval_expression(*ce.function, env);
+            let function = eval_expression(*ce.function, &env);
             if is_error(&function) {
                 return function;
             }
-            let args = eval_expressions(ce.arguments, env);
+            let args = eval_expressions(ce.arguments, &env);
             if args.len() == 1 && is_error(&args[0]) {
                 return args[0].clone();
             }
@@ -180,7 +175,7 @@ fn eval_expression(e: Expression, env: &mut Environment) -> Object {
                 return left;
             }
 
-            let right = eval_expression(*ie.right, env);
+            let right = eval_expression(*ie.right, &env);
             if is_error(&right) {
                 return right;
             }
@@ -188,6 +183,26 @@ fn eval_expression(e: Expression, env: &mut Environment) -> Object {
         }
         Expression::If(ie) => eval_if_expression(ie, env),
         Expression::String(se) => Object::String(StringObject { value: se.value }),
+        Expression::Array(al) => {
+            let elements = eval_expressions(al.elements, env);
+            if elements.len() == 1 && is_error(&elements[0]) {
+                return elements[0].clone();
+            }
+
+            return Object::Array(ArrayObject { elements });
+        }
+        Expression::Index(ie) => {
+            let left = eval_expression(*ie.left, env);
+            if is_error(&left) {
+                return left;
+            }
+            let index = eval_expression(*ie.index, env);
+            if is_error(&index) {
+                return index;
+            }
+
+            return eval_index_expression(left, index);
+        }
         _ => NULL_OBJ,
     }
 }
@@ -200,16 +215,16 @@ fn is_truthy(o: Object) -> bool {
     }
 }
 
-fn eval_if_expression(ie: IfExpression, env: &mut Environment) -> Object {
-    let condition = eval_expression(*ie.condition, env);
+fn eval_if_expression(ie: IfExpression, env: &Rc<RefCell<Environment>>) -> Object {
+    let condition = eval_expression(*ie.condition, &env);
     if is_error(&condition) {
         return condition;
     }
 
     if is_truthy(condition) {
-        eval_block_statement(*ie.consequence, env)
+        eval_block_statement(*ie.consequence, &env)
     } else if let Some(a) = ie.alternative {
-        eval_block_statement(*a, env)
+        eval_block_statement(*a, &env)
     } else {
         NULL_OBJ
     }
@@ -318,13 +333,34 @@ fn eval_string_infix_expression(
     }
 }
 
+fn eval_index_expression(left: Object, right: Object) -> Object {
+    match (&left, &right) {
+        (Object::Array(ao), Object::Integer(io)) => eval_array_index_expression(ao, io),
+        _ => Object::new_error(format!(
+            "index operator not supported: {}",
+            left.type_name()
+        )),
+    }
+}
+
+fn eval_array_index_expression(arr: &ArrayObject, index: &IntegerObject) -> Object {
+    let idx = index.value;
+    let max = (arr.elements.len() - 1) as i64;
+
+    if idx < 0 || idx > max {
+        return NULL_OBJ;
+    }
+
+    return arr.elements.get(idx as usize).expect("uhohhh").to_owned();
+}
+
 #[cfg(test)]
 mod tests {
     use crate::environment::Environment;
-    use crate::evaluator::eval;
+    use crate::evaluator::{self, NULL_OBJ, eval};
     use crate::lexer::Lexer;
-    use crate::object::Object;
-    use crate::parser::{Parser, check_parser_errors, ExpectedLiteral};
+    use crate::object::{NullObject, Object};
+    use crate::parser::{ExpectedLiteral, Parser, check_parser_errors};
 
     fn test_eval(input: &str) -> Option<Object> {
         let l = Lexer::new(input);
@@ -714,6 +750,21 @@ addTwo(2);";
                 r#"len("one", "two")"#,
                 ExpectedLiteral::Str("wrong number of arguments. got=2, want=1".to_string()),
             ),
+            ("len([])", ExpectedLiteral::Int(0)),
+            ("len([1])", ExpectedLiteral::Int(1)),
+            ("len([1,2])", ExpectedLiteral::Int(2)),
+            ("len([-1, 3, 5])", ExpectedLiteral::Int(3)),
+            ("first([1])", ExpectedLiteral::Int(1)),
+            ("first([])", ExpectedLiteral::Null()),
+            ("first([3,4,5])", ExpectedLiteral::Int(3)),
+            ("last([1])", ExpectedLiteral::Int(1)),
+            ("last([])", ExpectedLiteral::Null()),
+            ("last([3,4,5])", ExpectedLiteral::Int(5)),
+            ("rest([])", ExpectedLiteral::Null()),
+            ("rest([3])", ExpectedLiteral::IntArray(vec![])),
+            ("rest([3,4,5])", ExpectedLiteral::IntArray(vec![4, 5])),
+            ("push([], 3)", ExpectedLiteral::IntArray(vec![3])),
+            ("push([3], 4)", ExpectedLiteral::IntArray(vec![3, 4])),
         ];
 
         let mut failures: Vec<String> = Vec::new();
@@ -743,8 +794,155 @@ addTwo(2);";
                         failures.push(format!("input='{}': object is not Error, got=<nil>", input));
                     }
                 },
-                _ => {}
+                ExpectedLiteral::IntArray(ia) => match evaluated {
+                    Some(Object::Array(io)) => {
+                        let mut elements: Vec<i64> = Vec::new();
+                        io.elements.iter().for_each(|eo| match &eo {
+                            &Object::Integer(i) => elements.push(i.value),
+                            _ => {}
+                        });
+                        if !ia.iter().eq(&elements) {
+                            failures.push(format!(
+                                "input='{}' should result in {:?}, got={:?}",
+                                input, ia, elements
+                            ));
+                        }
+                    }
+                    _ => failures.push(format!(
+                        "input='{}', should result in {:?}, got={:?}",
+                        input, expected, evaluated
+                    )),
+                },
+                ExpectedLiteral::Null() => match evaluated {
+                    Some(Object::Null(_)) => {}
+                    _ => failures.push(format!(
+                        "input='{}', should result in null, got={:?}",
+                        input, evaluated
+                    )),
+                },
+                _ => failures.push(format!("unhandled ExpectedLiteral {:?}", expected)),
             }
+        }
+
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn test_array_literals() {
+        let input = "[1, 2 * 2, 3 + 3]";
+        let mut failures: Vec<String> = Vec::new();
+
+        let evaluated = test_eval(input);
+
+        let result = match &evaluated {
+            Some(Object::Array(a)) => a,
+            _ => {
+                failures.push(format!("object is not Array, got={:?}", evaluated));
+                assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+                return;
+            }
+        };
+
+        if result.elements.len() != 3 {
+            failures.push(format!(
+                "array has wrong num of elements, got={}",
+                result.elements.len()
+            ));
+            assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+            return;
+        }
+
+        test_integer_object(&Some(result.elements[0].clone()), 1, input, &mut failures);
+        test_integer_object(&Some(result.elements[1].clone()), 4, input, &mut failures);
+        test_integer_object(&Some(result.elements[2].clone()), 6, input, &mut failures);
+
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn test_array_index_expressions() {
+        enum Expected {
+            Int(i64),
+            Null,
+        }
+
+        let tests = vec![
+            ("[1, 2, 3][0]", Expected::Int(1)),
+            ("[1, 2, 3][1]", Expected::Int(2)),
+            ("[1, 2, 3][2]", Expected::Int(3)),
+            ("let i = 0; [1][i];", Expected::Int(1)),
+            ("[1, 2, 3][1 + 1];", Expected::Int(3)),
+            ("let myArray = [1, 2, 3]; myArray[2];", Expected::Int(3)),
+            (
+                "let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];",
+                Expected::Int(6),
+            ),
+            (
+                "let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]",
+                Expected::Int(2),
+            ),
+            ("[1, 2, 3][3]", Expected::Null),
+            ("[1, 2, 3][-1]", Expected::Null),
+        ];
+
+        let mut failures: Vec<String> = Vec::new();
+
+        for (input, expected) in &tests {
+            let evaluated = test_eval(input);
+            match expected {
+                Expected::Int(i) => test_integer_object(&evaluated, *i, input, &mut failures),
+                Expected::Null => test_null_object(&evaluated, input, &mut failures),
+            }
+        }
+
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn test_map_function() {
+        let input = "
+let map = fn(arr, f) {
+    let iter = fn(arr, accumulated) {
+        if (len(arr) == 0) {
+            accumulated
+        } else {
+            iter(rest(arr), push(accumulated, f(first(arr))));
+        }
+    };
+    iter(arr, []);
+};
+let a = [1, 2, 3, 4];
+let double = fn(x) { x * 2 };
+map(a, double);
+";
+
+        let mut failures: Vec<String> = Vec::new();
+        let evaluated = test_eval(input);
+
+        let result = match &evaluated {
+            Some(Object::Array(a)) => a,
+            _ => {
+                failures.push(format!("object is not Array, got={:?}", evaluated));
+                assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+                return;
+            }
+        };
+
+        assert_eq!(
+            result.elements.len(),
+            4,
+            "array has wrong num of elements, got={}",
+            result.elements.len()
+        );
+
+        let expected = vec![2, 4, 6, 8];
+        for (i, exp) in expected.iter().enumerate() {
+            test_integer_object(
+                &Some(result.elements[i].clone()),
+                *exp,
+                input,
+                &mut failures,
+            );
         }
 
         assert!(failures.is_empty(), "\n{}", failures.join("\n"));
