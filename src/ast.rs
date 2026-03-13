@@ -24,23 +24,13 @@ impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Statement::Let(s) => {
-                let val = if let Some(v) = &s.value {
-                    &v.to_string()
-                } else {
-                    ""
-                };
-                write!(f, "{} {} = {};", &s.token.literal.clone(), s.name, val)
+                write!(f, "{} {} = ", s.token.literal, s.name)?;
+                if let Some(v) = &s.value {
+                    write!(f, "{}", v)?;
+                }
+                write!(f, ";")
             }
             Statement::Return(s) => {
-                // let mut out = String::new();
-                // out += &format!("{} ", s.token.literal.clone());
-                //
-                // if let Some(v) = &s.return_value {
-                //     out += &v.to_string()
-                // }
-                // out += ";";
-                //
-                // out;
                 let val = match &s.return_value {
                     Some(v) => v.to_string(),
                     None => "".to_string(),
@@ -136,7 +126,7 @@ impl fmt::Display for Expression {
             Expression::Array(al) => al.to_string(),
             Expression::Index(ie) => ie.to_string(),
             Expression::Hash(he) => he.to_string(),
-            _ => todo!(),
+            _ => unreachable!("how'd you manage that"),
         };
 
         write!(f, "{}", res)
@@ -203,25 +193,6 @@ impl fmt::Display for InfixExpression {
         write!(f, "({} {} {})", self.left, self.operator, self.right)
     }
 }
-
-// TODO: Remove
-// #[allow(dead_code)]
-// impl Node for InfixExpression {
-//     fn token_literal(&self) -> String {
-//         self.token.literal.clone()
-//     }
-//
-//     fn to_string(&self) -> String {
-//         let mut out = String::new();
-//         out += &format!(
-//             "({} {} {})",
-//             self.left.to_string(),
-//             self.operator,
-//             self.right.to_string()
-//         );
-//         out
-//     }
-// }
 
 #[allow(dead_code)]
 #[derive(Debug, Default, Clone)]
@@ -305,26 +276,6 @@ impl fmt::Display for CallExpression {
         )
     }
 }
-
-// #[allow(dead_code)]
-// impl Node for CallExpression {
-//     fn token_literal(&self) -> String {
-//         self.token.literal.clone()
-//     }
-//
-//     fn to_string(&self) -> String {
-//         let mut out = String::new();
-//         let mut args: Vec<String> = Vec::new();
-//
-//         for a in &self.arguments {
-//             args.push(a.to_string());
-//         }
-//
-//         out += &format!("{}({})", self.function.to_string(), args.join(" "));
-//
-//         out
-//     }
-// }
 
 #[allow(dead_code)]
 #[derive(Debug, Default, Clone)]

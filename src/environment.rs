@@ -29,7 +29,7 @@ impl Environment {
         match self.store.get(key) {
             Some(o) => Some(o.clone()),
             None => match &self.outer {
-                Some(outer) => return outer.borrow().get(key),
+                Some(outer) => outer.borrow().get(key),
                 None => None,
             },
         }

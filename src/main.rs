@@ -8,8 +8,6 @@ mod parser;
 mod repl;
 mod token;
 
-use crate::token::*;
-
 fn main() {
     repl::start();
 }
