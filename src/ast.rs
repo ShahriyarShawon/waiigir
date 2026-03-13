@@ -1,4 +1,5 @@
 use crate::token;
+use std::fmt;
 
 pub trait Node {
     fn token_literal(&self) -> String;
@@ -9,15 +10,11 @@ pub struct Program {
     pub statements: Vec<Statement>,
 }
 
-#[allow(dead_code)]
-impl Program {
-    pub fn to_string(&self) -> String {
-        let mut out = String::new();
-        for s in &self.statements {
-            out += &s.to_string();
-        }
+impl fmt::Display for Program {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let params: Vec<String> = self.statements.iter().map(|p| p.to_string()).collect();
 
-        out
+        write!(f, "{}", params.join("\n"))
     }
 }
 
@@ -99,15 +96,11 @@ pub struct BlockStatement {
     pub statements: Vec<Statement>,
 }
 
-impl BlockStatement {
-    pub fn to_string(&self) -> String {
-        let mut out = String::new();
+impl fmt::Display for BlockStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let params: Vec<String> = self.statements.iter().map(|p| p.to_string()).collect();
 
-        for s in &self.statements {
-            out += &s.to_string()
-        }
-
-        out
+        write!(f, "{}", params.join("\n"))
     }
 }
 
@@ -126,7 +119,7 @@ pub enum Expression {
     String(StringLiteral),
     Array(ArrayLiteral),
     Index(IndexExpression),
-    Hash(HashLiteral)
+    Hash(HashLiteral),
 }
 
 #[allow(dead_code)]
@@ -290,7 +283,7 @@ impl Node for IfExpression {
         );
 
         if let Some(a) = &self.alternative {
-            out += &format!("else {}", a.to_string())
+            out += &format!("else {}", a)
         }
 
         out
@@ -305,23 +298,11 @@ pub struct FunctionLiteral {
     pub body: BlockStatement,
 }
 
-impl FunctionLiteral {
-    fn to_string(&self) -> String {
-        let mut out = String::new();
+impl fmt::Display for FunctionLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let params: Vec<String> = self.parameters.iter().map(|p| p.to_string()).collect();
 
-        let mut params: Vec<String> = Vec::new();
-        for p in &self.parameters {
-            params.push(p.to_string());
-        }
-
-        out += &format!(
-            "{}({}){}",
-            self.token.literal.clone(),
-            params.join(", "),
-            self.body.to_string()
-        );
-
-        out
+        write!(f, "fn({}){}", params.join(", "), self.body)
     }
 }
 
@@ -403,7 +384,7 @@ impl Node for ArrayLiteral {
 pub struct IndexExpression {
     pub token: token::Token,
     pub left: Box<Expression>,
-    pub index: Box<Expression>
+    pub index: Box<Expression>,
 }
 
 #[allow(dead_code)]
@@ -422,7 +403,7 @@ impl Node for IndexExpression {
 #[derive(Debug, Default, Clone)]
 pub struct HashLiteral {
     pub token: token::Token,
-    pub pairs: Vec<(Expression, Expression)>
+    pub pairs: Vec<(Expression, Expression)>,
 }
 
 impl Node for HashLiteral {
@@ -432,7 +413,7 @@ impl Node for HashLiteral {
 
     fn to_string(&self) -> String {
         let mut pair_string: Vec<String> = Vec::new();
-        
+
         for (key, value) in self.pairs.iter() {
             pair_string.push(format!("{}:{}", key.to_string(), value.to_string()));
         }

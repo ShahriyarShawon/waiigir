@@ -27,7 +27,7 @@ pub fn eval(program: Program, env: &Rc<RefCell<Environment>>) -> Option<Object> 
     let mut result: Object = NULL_OBJ;
 
     for s in program.statements {
-        result = eval_statement(s, &env);
+        result = eval_statement(s, env);
         match result {
             Object::Return(rs) => return Some(*rs.value),
             Object::Error(eo) => return Some(Object::Error(eo)),
@@ -39,7 +39,7 @@ pub fn eval(program: Program, env: &Rc<RefCell<Environment>>) -> Option<Object> 
 }
 
 fn eval_statement(statement: Statement, env: &Rc<RefCell<Environment>>) -> Object {
-    let result = match statement {
+    match statement {
         Statement::Let(ls) => {
             let val = eval_expression(ls.value.unwrap(), env);
             if is_error(&val) {
@@ -55,13 +55,11 @@ fn eval_statement(statement: Statement, env: &Rc<RefCell<Environment>>) -> Objec
             if is_error(&val) {
                 return val;
             }
-            return Object::Return(ReturnValue {
+            Object::Return(ReturnValue {
                 value: Box::new(val),
-            });
+            })
         }
-    };
-
-    result
+    }
 }
 
 fn eval_block_statement(block: BlockStatement, env: &Rc<RefCell<Environment>>) -> Object {
@@ -91,7 +89,7 @@ fn eval_identifier(ie: IdentifierExpression, env: &Rc<RefCell<Environment>>) -> 
 fn eval_expressions(exps: Vec<Expression>, env: &Rc<RefCell<Environment>>) -> Vec<Object> {
     let mut results: Vec<Object> = Vec::new();
     for e in exps {
-        let evaluated = eval_expression(e, &env);
+        let evaluated = eval_expression(e, env);
         if is_error(&evaluated) {
             return vec![evaluated];
         }
@@ -106,9 +104,9 @@ fn apply_function(func: Object, args: Vec<Object>) -> Object {
         Object::Function(fo) => {
             let extended_env = extend_function_env(&fo, args);
             let evaluated = eval_block_statement(fo.body, &extended_env);
-            return unwrap_return_value(evaluated);
+            unwrap_return_value(evaluated)
         }
-        Object::BuiltInFunction(bif) => return (bif.function)(args),
+        Object::BuiltInFunction(bif) => (bif.function)(args),
         _ => Object::new_error(format!("not a function: {:?}", func)),
     }
 }
@@ -132,16 +130,16 @@ fn unwrap_return_value(obj: Object) -> Object {
 fn eval_expression(e: Expression, env: &Rc<RefCell<Environment>>) -> Object {
     match e {
         Expression::Call(ce) => {
-            let function = eval_expression(*ce.function, &env);
+            let function = eval_expression(*ce.function, env);
             if is_error(&function) {
                 return function;
             }
-            let args = eval_expressions(ce.arguments, &env);
+            let args = eval_expressions(ce.arguments, env);
             if args.len() == 1 && is_error(&args[0]) {
                 return args[0].clone();
             }
 
-            return apply_function(function, args);
+            apply_function(function, args)
         }
         Expression::Function(fl) => {
             let params = fl.parameters;
@@ -174,7 +172,7 @@ fn eval_expression(e: Expression, env: &Rc<RefCell<Environment>>) -> Object {
                 return left;
             }
 
-            let right = eval_expression(*ie.right, &env);
+            let right = eval_expression(*ie.right, env);
             if is_error(&right) {
                 return right;
             }
@@ -188,7 +186,7 @@ fn eval_expression(e: Expression, env: &Rc<RefCell<Environment>>) -> Object {
                 return elements[0].clone();
             }
 
-            return Object::Array(ArrayObject { elements });
+            Object::Array(ArrayObject { elements })
         }
         Expression::Index(ie) => {
             let left = eval_expression(*ie.left, env);
@@ -200,9 +198,9 @@ fn eval_expression(e: Expression, env: &Rc<RefCell<Environment>>) -> Object {
                 return index;
             }
 
-            return eval_index_expression(left, index);
+            eval_index_expression(left, index)
         }
-        Expression::Hash(hl) => eval_hash_literal(hl, &env),
+        Expression::Hash(hl) => eval_hash_literal(hl, env),
         _ => NULL_OBJ,
     }
 }
@@ -216,15 +214,15 @@ fn is_truthy(o: Object) -> bool {
 }
 
 fn eval_if_expression(ie: IfExpression, env: &Rc<RefCell<Environment>>) -> Object {
-    let condition = eval_expression(*ie.condition, &env);
+    let condition = eval_expression(*ie.condition, env);
     if is_error(&condition) {
         return condition;
     }
 
     if is_truthy(condition) {
-        eval_block_statement(*ie.consequence, &env)
+        eval_block_statement(*ie.consequence, env)
     } else if let Some(a) = ie.alternative {
-        eval_block_statement(*a, &env)
+        eval_block_statement(*a, env)
     } else {
         NULL_OBJ
     }
@@ -348,7 +346,7 @@ fn eval_hash_literal(hl: HashLiteral, env: &Rc<RefCell<Environment>>) -> Object 
     let mut pairs: HashMap<HashKey, HashPair> = HashMap::new();
 
     for (key_exp, value_exp) in hl.pairs {
-        let key = eval_expression(key_exp, &env);
+        let key = eval_expression(key_exp, env);
         if is_error(&key) {
             return key;
         }
@@ -360,7 +358,7 @@ fn eval_hash_literal(hl: HashLiteral, env: &Rc<RefCell<Environment>>) -> Object 
             _ => return Object::new_error(format!("unusable as hash key: {:?}", key.type_name())),
         };
 
-        let val = eval_expression(value_exp, &env);
+        let val = eval_expression(value_exp, env);
         if is_error(&val) {
             return val;
         }
@@ -368,7 +366,7 @@ fn eval_hash_literal(hl: HashLiteral, env: &Rc<RefCell<Environment>>) -> Object 
         pairs.insert(hashed, HashPair { key, value: val });
     }
 
-    return Object::Hash(HashObject { pairs });
+    Object::Hash(HashObject { pairs })
 }
 
 fn eval_array_index_expression(arr: &ArrayObject, index: &IntegerObject) -> Object {
@@ -379,7 +377,7 @@ fn eval_array_index_expression(arr: &ArrayObject, index: &IntegerObject) -> Obje
         return NULL_OBJ;
     }
 
-    return arr.elements.get(idx as usize).expect("uhohhh").to_owned();
+    arr.elements.get(idx as usize).expect("uhohhh").to_owned()
 }
 
 fn eval_hash_index_expression(hash: &HashObject, index: Object) -> Object {
@@ -391,8 +389,8 @@ fn eval_hash_index_expression(hash: &HashObject, index: Object) -> Object {
     };
     let res = hash.pairs.get(&key);
     match res {
-        Some(v) => return v.value.clone(),
-        None => return NULL_OBJ,
+        Some(v) => v.value.clone(),
+        None => NULL_OBJ,
     }
 }
 

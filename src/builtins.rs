@@ -9,7 +9,7 @@ pub fn get_builtin(fname: &str) -> Option<Object> {
                     println!("{}", arg.Inspect());
                 }
 
-                return NULL_OBJ;
+                NULL_OBJ
             },
         })),
         "len" => Some(Object::BuiltInFunction(BuiltInFunctionObject {
@@ -22,22 +22,16 @@ pub fn get_builtin(fname: &str) -> Option<Object> {
                 }
 
                 match &args[0] {
-                    Object::String(so) => {
-                        return Object::Integer(IntegerObject {
-                            value: so.value.len() as i64,
-                        });
-                    }
-                    Object::Array(ao) => {
-                        return Object::Integer(IntegerObject {
-                            value: ao.elements.len() as i64,
-                        });
-                    }
-                    _ => {
-                        return Object::new_error(format!(
-                            "argument to `len` not supported, got {}",
-                            args[0].type_name()
-                        ));
-                    }
+                    Object::String(so) => Object::Integer(IntegerObject {
+                        value: so.value.len() as i64,
+                    }),
+                    Object::Array(ao) => Object::Integer(IntegerObject {
+                        value: ao.elements.len() as i64,
+                    }),
+                    _ => Object::new_error(format!(
+                        "argument to `len` not supported, got {}",
+                        args[0].type_name()
+                    )),
                 }
             },
         })),
@@ -49,16 +43,16 @@ pub fn get_builtin(fname: &str) -> Option<Object> {
                         args.len()
                     ));
                 }
-                if args.get(0).expect("hope so").type_name() != "ARRAY" {
+                if args.first().expect("hope so").type_name() != "ARRAY" {
                     return Object::new_error(format!(
                         "argument to `first` must be ARRAY, got {}",
-                        args.get(0).expect("hopesp").type_name()
+                        args.first().expect("hopesp").type_name()
                     ));
                 }
 
                 match &args[0] {
                     Object::Array(ao) => {
-                        if ao.elements.len() == 0 {
+                        if ao.elements.is_empty() {
                             NULL_OBJ
                         } else {
                             ao.elements[0].clone()
@@ -76,7 +70,7 @@ pub fn get_builtin(fname: &str) -> Option<Object> {
                         args.len()
                     ));
                 }
-                if args.get(0).expect("hope so").type_name() != "ARRAY" {
+                if args.first().expect("hope so").type_name() != "ARRAY" {
                     return Object::new_error(format!(
                         "argument to `last` must be ARRAY, got {}",
                         args.first().expect("hopesp").type_name()
@@ -100,7 +94,7 @@ pub fn get_builtin(fname: &str) -> Option<Object> {
                         args.len()
                     ));
                 }
-                if args.get(0).expect("hope so").type_name() != "ARRAY" {
+                if args.first().expect("hope so").type_name() != "ARRAY" {
                     return Object::new_error(format!(
                         "argument to `rest` must be ARRAY, got {}",
                         args.first().expect("hopesp").type_name()

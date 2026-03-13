@@ -17,7 +17,6 @@ use crate::token;
 type PrefixParseFn = fn(&mut Parser) -> Option<ast::Expression>;
 type InfixParseFn = fn(&mut Parser, ast::Expression) -> Option<ast::Expression>;
 
-
 // used for tests in multiple files
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -281,7 +280,7 @@ impl Parser {
         match index {
             Some(i) => {
                 exp.index = Box::new(i);
-                return Some(ast::Expression::Index(exp));
+                Some(ast::Expression::Index(exp))
             }
             _ => None,
         }
@@ -572,7 +571,7 @@ impl Parser {
 
 #[allow(dead_code)]
 pub fn check_parser_errors(p: &Parser) {
-    if p.errors.len() == 0 {
+    if p.errors.is_empty() {
         return;
     }
 

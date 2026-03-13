@@ -46,7 +46,7 @@ pub enum TokenType {
     ELSE,
     TRUE,
     FALSE,
-    EQ, 
+    EQ,
     NOT_EQ,
-    STRING
+    STRING,
 }

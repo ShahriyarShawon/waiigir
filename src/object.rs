@@ -10,6 +10,7 @@ use crate::{
     environment::Environment,
 };
 
+#[allow(clippy::upper_case_acronyms)]
 type BIFO = fn(Vec<Object>) -> Object;
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
@@ -47,11 +48,11 @@ impl Object {
                     .map(|f| f.value.clone())
                     .collect::<Vec<String>>()
                     .join(", "),
-                fo.body.to_string()
+                fo.body
             ),
-            Object::Integer(io) => format!("{}", io.value),
-            Object::Boolean(bo) => format!("{}", bo.value),
-            Object::String(so) => format!("{}", so.value),
+            Object::Integer(io) => io.value.to_string(),
+            Object::Boolean(bo) => bo.value.to_string(),
+            Object::String(so) => so.value.to_string(),
             Object::BuiltInFunction(_bif) => String::from("builtin function"),
             Object::Hash(ho) => {
                 let mut pairs: Vec<String> = Vec::new();
@@ -76,7 +77,7 @@ impl Object {
                 out
             }
             Object::Return(ro) => format!("{:?}", ro.value),
-            Object::Error(eo) => format!("{}", eo.message),
+            Object::Error(eo) => eo.message.to_string(),
             Object::Null(_) => String::from("null"),
         }
     }
