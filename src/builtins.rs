@@ -3,6 +3,15 @@ use crate::object::{ArrayObject, BuiltInFunctionObject, IntegerObject, Object};
 
 pub fn get_builtin(fname: &str) -> Option<Object> {
     match fname {
+        "puts" => Some(Object::BuiltInFunction(BuiltInFunctionObject {
+            function: |args: Vec<Object>| -> Object {
+                for arg in args {
+                    println!("{}", arg.Inspect());
+                }
+
+                return NULL_OBJ;
+            },
+        })),
         "len" => Some(Object::BuiltInFunction(BuiltInFunctionObject {
             function: |args: Vec<Object>| -> Object {
                 if args.len() != 1 {
