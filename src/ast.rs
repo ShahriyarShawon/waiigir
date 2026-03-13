@@ -29,13 +29,7 @@ impl fmt::Display for Statement {
                 } else {
                     ""
                 };
-                write!(
-                    f,
-                    "{} {} = {};",
-                    &s.token.literal.clone(),
-                    s.name.to_string(),
-                    val
-                )
+                write!(f, "{} {} = {};", &s.token.literal.clone(), s.name, val)
             }
             Statement::Return(s) => {
                 // let mut out = String::new();
@@ -54,7 +48,7 @@ impl fmt::Display for Statement {
                 write!(f, "{} {};", s.token.literal.clone(), val)
             }
             Statement::Expression(s) => match &s.expression {
-                Some(thing) => write!(f, "{}", thing.to_string()),
+                Some(thing) => write!(f, "{}", thing),
                 None => write!(f, ""),
             },
         }
@@ -206,13 +200,7 @@ pub struct InfixExpression {
 
 impl fmt::Display for InfixExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "({} {} {})",
-            self.left.to_string(),
-            self.operator,
-            self.right.to_string()
-        )
+        write!(f, "({} {} {})", self.left, self.operator, self.right)
     }
 }
 
@@ -275,13 +263,7 @@ impl fmt::Display for IfExpression {
             Some(v) => &format!("else {}", v),
             _ => "",
         };
-        write!(
-            f,
-            "if {} {} {}",
-            self.condition.to_string(),
-            self.consequence,
-            alt
-        )
+        write!(f, "if {} {} {}", self.condition, self.consequence, alt)
     }
 }
 
@@ -314,7 +296,7 @@ impl fmt::Display for CallExpression {
         write!(
             f,
             "{}({})",
-            self.function.to_string(),
+            self.function,
             self.arguments
                 .iter()
                 .map(|a| a.to_string())
