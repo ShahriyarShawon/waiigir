@@ -5,10 +5,10 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(_token_type: TokenType, _literal: String) -> Self {
+    pub fn new(token_type: TokenType, literal: String) -> Self {
         Token {
-            token_type: _token_type,
-            literal: _literal.clone(),
+            token_type,
+            literal,
         }
     }
 }

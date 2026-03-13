@@ -277,7 +277,7 @@ impl Node for IfExpression {
 
     fn to_string(&self) -> String {
         let mut out = format!(
-            "if {:?} {:?}",
+            "if {} {}",
             self.condition.to_string(),
             self.consequence.to_string()
         );
