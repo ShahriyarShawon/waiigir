@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::TokenType;
 use crate::ast;
 use crate::ast::BlockStatement;
@@ -16,8 +14,20 @@ use crate::ast::StringLiteral;
 use crate::lexer;
 use crate::token;
 
-type prefix_parse_fn = fn(&mut Parser) -> Option<ast::Expression>;
-type infix_parse_fn = fn(&mut Parser, ast::Expression) -> Option<ast::Expression>;
+type PrefixParseFn = fn(&mut Parser) -> Option<ast::Expression>;
+type InfixParseFn = fn(&mut Parser, ast::Expression) -> Option<ast::Expression>;
+
+
+// used for tests in multiple files
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub enum ExpectedLiteral {
+    Int(i64),
+    Str(String),
+    Boolean(bool),
+    IntArray(Vec<i64>),
+    Null(),
+}
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
@@ -42,15 +52,6 @@ fn precedences(t: &TokenType) -> Option<Precedence> {
         TokenType::LBRACKET => Some(Precedence::INDEX),
         _ => None,
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum ExpectedLiteral {
-    Int(i64),
-    Str(String),
-    Boolean(bool),
-    IntArray(Vec<i64>),
-    Null(),
 }
 
 #[allow(dead_code)]
@@ -530,7 +531,7 @@ impl Parser {
         }
     }
 
-    fn prefix_parse_fns(&self, t: &TokenType) -> Option<prefix_parse_fn> {
+    fn prefix_parse_fns(&self, t: &TokenType) -> Option<PrefixParseFn> {
         match t {
             TokenType::IDENT => Some(Parser::parse_identifier),
             TokenType::INT => Some(Parser::parse_integer_literal),
@@ -552,7 +553,7 @@ impl Parser {
         self.errors.push(msg);
     }
 
-    fn infix_parse_fns(&self, t: &TokenType) -> Option<infix_parse_fn> {
+    fn infix_parse_fns(&self, t: &TokenType) -> Option<InfixParseFn> {
         match t {
             TokenType::PLUS
             | TokenType::MINUS
@@ -569,6 +570,7 @@ impl Parser {
     }
 }
 
+#[allow(dead_code)]
 pub fn check_parser_errors(p: &Parser) {
     if p.errors.len() == 0 {
         return;
@@ -595,7 +597,6 @@ mod tests {
             return false;
         }
 
-        // downcast to LetStatement
         let let_stmt = match s {
             Statement::Let(ls) => ls,
             _ => {

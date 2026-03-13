@@ -1,9 +1,4 @@
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
-use std::fmt;
-
 use crate::token;
-use crate::object::HashKey;
 
 pub trait Node {
     fn token_literal(&self) -> String;
@@ -14,6 +9,7 @@ pub struct Program {
     pub statements: Vec<Statement>,
 }
 
+#[allow(dead_code)]
 impl Program {
     pub fn to_string(&self) -> String {
         let mut out = String::new();
@@ -30,7 +26,6 @@ pub enum Statement {
     Let(LetStatement),
     Return(ReturnStatement),
     Expression(ExpressionStatement),
-    Block(BlockStatement),
 }
 
 #[allow(dead_code)]
@@ -40,7 +35,6 @@ impl Node for Statement {
             Statement::Let(s) => s.token.literal.clone(),
             Statement::Return(s) => s.token.literal.clone(),
             Statement::Expression(s) => s.token.literal.clone(),
-            Statement::Block(s) => s.token.literal.clone(),
         }
     }
 
@@ -72,15 +66,6 @@ impl Node for Statement {
                 Some(thing) => thing.to_string(),
                 None => String::new(),
             },
-            Statement::Block(s) => {
-                let mut out = String::new();
-
-                for statement in &s.statements {
-                    out += &statement.to_string()
-                }
-
-                out
-            }
         }
     }
 }
@@ -168,20 +153,6 @@ impl Node for Expression {
         }
     }
 }
-
-impl Hash for Expression {
-    fn hash<H: Hasher>(&self, state: &mut H) {}
-}
-
-impl PartialEq for Expression {
-    fn eq(&self, other: &Self) -> bool {
-       match (self, other) {
-           _ => false
-       }
-    }
-}
-
-impl Eq for Expression {}
 
 #[allow(dead_code)]
 impl Program {

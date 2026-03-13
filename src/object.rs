@@ -81,10 +81,6 @@ impl Object {
         }
     }
 
-    pub fn new_integer(val: i64) -> Object {
-        Object::Integer(IntegerObject { value: val })
-    }
-
     pub fn new_error(message: String) -> Object {
         Object::Error(ErrorObject { message })
     }
@@ -193,8 +189,6 @@ pub struct NullObject {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
 
     #[test]
     fn test_string_hash_key() {

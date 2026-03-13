@@ -50,7 +50,6 @@ fn eval_statement(statement: Statement, env: &Rc<RefCell<Environment>>) -> Objec
             val
         }
         Statement::Expression(es) => eval_expression(es.expression.unwrap(), env),
-        Statement::Block(bs) => eval_block_statement(bs, env),
         Statement::Return(rs) => {
             let val = eval_expression(rs.return_value.expect("return value missing"), env);
             if is_error(&val) {
@@ -60,7 +59,6 @@ fn eval_statement(statement: Statement, env: &Rc<RefCell<Environment>>) -> Objec
                 value: Box::new(val),
             });
         }
-        _ => return NULL_OBJ,
     };
 
     result
@@ -106,7 +104,7 @@ fn eval_expressions(exps: Vec<Expression>, env: &Rc<RefCell<Environment>>) -> Ve
 fn apply_function(func: Object, args: Vec<Object>) -> Object {
     match func {
         Object::Function(fo) => {
-            let mut extended_env = extend_function_env(&fo, args);
+            let extended_env = extend_function_env(&fo, args);
             let evaluated = eval_block_statement(fo.body, &extended_env);
             return unwrap_return_value(evaluated);
         }
@@ -338,7 +336,7 @@ fn eval_string_infix_expression(
 fn eval_index_expression(left: Object, index: Object) -> Object {
     match (&left, &index) {
         (Object::Array(ao), Object::Integer(io)) => eval_array_index_expression(ao, io),
-        (Object::Hash(ho), _) => eval_hash_index_expression(left, index),
+        (Object::Hash(ho), _) => eval_hash_index_expression(ho, index),
         _ => Object::new_error(format!(
             "index operator not supported: {}",
             left.type_name()
@@ -384,22 +382,18 @@ fn eval_array_index_expression(arr: &ArrayObject, index: &IntegerObject) -> Obje
     return arr.elements.get(idx as usize).expect("uhohhh").to_owned();
 }
 
-fn eval_hash_index_expression(hash: Object, index: Object) -> Object {
+fn eval_hash_index_expression(hash: &HashObject, index: Object) -> Object {
     let key = match index {
         Object::Integer(o) => o.hash_key(),
         Object::Boolean(o) => o.hash_key(),
         Object::String(o) => o.hash_key(),
-        _ => return Object::new_error(format!("unusable as hash key: {}", index.type_name()))
+        _ => return Object::new_error(format!("unusable as hash key: {}", index.type_name())),
     };
-    if let Object::Hash(ho) = hash {
-        let res = ho.pairs.get(&key);
-        match res {
-            Some(v) => return v.value.clone(),
-            None => return NULL_OBJ
-        }
-    } else {
-        return NULL_OBJ
-    };
+    let res = hash.pairs.get(&key);
+    match res {
+        Some(v) => return v.value.clone(),
+        None => return NULL_OBJ,
+    }
 }
 
 #[cfg(test)]
