@@ -1,4 +1,9 @@
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::fmt;
+
 use crate::token;
+use crate::object::HashKey;
 
 pub trait Node {
     fn token_literal(&self) -> String;
@@ -135,7 +140,8 @@ pub enum Expression {
     Call(CallExpression),
     String(StringLiteral),
     Array(ArrayLiteral),
-    Index(IndexExpression)
+    Index(IndexExpression),
+    Hash(HashLiteral)
 }
 
 #[allow(dead_code)]
@@ -157,10 +163,25 @@ impl Node for Expression {
             Expression::String(se) => se.to_string(),
             Expression::Array(al) => al.to_string(),
             Expression::Index(ie) => ie.to_string(),
+            Expression::Hash(he) => he.to_string(),
             _ => todo!(),
         }
     }
 }
+
+impl Hash for Expression {
+    fn hash<H: Hasher>(&self, state: &mut H) {}
+}
+
+impl PartialEq for Expression {
+    fn eq(&self, other: &Self) -> bool {
+       match (self, other) {
+           _ => false
+       }
+    }
+}
+
+impl Eq for Expression {}
 
 #[allow(dead_code)]
 impl Program {
@@ -423,6 +444,29 @@ impl Node for IndexExpression {
     fn to_string(&self) -> String {
         let out = format!("({}[{}])", self.left.to_string(), self.index.to_string());
         out
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Default, Clone)]
+pub struct HashLiteral {
+    pub token: token::Token,
+    pub pairs: Vec<(Expression, Expression)>
+}
+
+impl Node for HashLiteral {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn to_string(&self) -> String {
+        let mut pair_string: Vec<String> = Vec::new();
+        
+        for (key, value) in self.pairs.iter() {
+            pair_string.push(format!("{}:{}", key.to_string(), value.to_string()));
+        }
+
+        format!("{{ {} }}", pair_string.join(", "))
     }
 }
 

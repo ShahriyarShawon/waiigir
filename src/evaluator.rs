@@ -1,14 +1,15 @@
 use crate::ast::{
-    BlockStatement, Expression, IdentifierExpression, IfExpression, Program, Statement,
+    BlockStatement, Expression, HashLiteral, IdentifierExpression, IfExpression, Program, Statement,
 };
 use crate::builtins::get_builtin;
 use crate::environment::Environment;
 use crate::object::{
-    ArrayObject, BooleanObject, FunctionObject, IntegerObject, NullObject, Object, ReturnValue,
-    StringObject,
+    ArrayObject, BooleanObject, FunctionObject, HashKey, HashObject, HashPair, Hashable,
+    IntegerObject, NullObject, Object, ReturnValue, StringObject,
 };
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 
 const CONST_TRUE: BooleanObject = BooleanObject { value: true };
 const CONST_FALSE: BooleanObject = BooleanObject { value: false };
@@ -114,7 +115,7 @@ fn apply_function(func: Object, args: Vec<Object>) -> Object {
     }
 }
 
-fn extend_function_env(func: &FunctionObject, args: Vec<Object>) -> Rc<RefCell<Environment>>{
+fn extend_function_env(func: &FunctionObject, args: Vec<Object>) -> Rc<RefCell<Environment>> {
     let env = Environment::new_enclosed_environment(&func.env);
     for (index, ident) in func.parameters.iter().enumerate() {
         env.borrow_mut().set(&ident.value, args[index].clone());
@@ -203,6 +204,7 @@ fn eval_expression(e: Expression, env: &Rc<RefCell<Environment>>) -> Object {
 
             return eval_index_expression(left, index);
         }
+        Expression::Hash(hl) => eval_hash_literal(hl, &env),
         _ => NULL_OBJ,
     }
 }
@@ -333,14 +335,42 @@ fn eval_string_infix_expression(
     }
 }
 
-fn eval_index_expression(left: Object, right: Object) -> Object {
-    match (&left, &right) {
+fn eval_index_expression(left: Object, index: Object) -> Object {
+    match (&left, &index) {
         (Object::Array(ao), Object::Integer(io)) => eval_array_index_expression(ao, io),
+        (Object::Hash(ho), _) => eval_hash_index_expression(left, index),
         _ => Object::new_error(format!(
             "index operator not supported: {}",
             left.type_name()
         )),
     }
+}
+
+fn eval_hash_literal(hl: HashLiteral, env: &Rc<RefCell<Environment>>) -> Object {
+    let mut pairs: HashMap<HashKey, HashPair> = HashMap::new();
+
+    for (key_exp, value_exp) in hl.pairs {
+        let key = eval_expression(key_exp, &env);
+        if is_error(&key) {
+            return key;
+        }
+
+        let hashed = match &key {
+            Object::Integer(io) => io.hash_key(),
+            Object::String(so) => so.hash_key(),
+            Object::Boolean(bo) => bo.hash_key(),
+            _ => return Object::new_error(format!("unusable as hash key: {:?}", key.type_name())),
+        };
+
+        let val = eval_expression(value_exp, &env);
+        if is_error(&val) {
+            return val;
+        }
+
+        pairs.insert(hashed, HashPair { key, value: val });
+    }
+
+    return Object::Hash(HashObject { pairs });
 }
 
 fn eval_array_index_expression(arr: &ArrayObject, index: &IntegerObject) -> Object {
@@ -354,13 +384,31 @@ fn eval_array_index_expression(arr: &ArrayObject, index: &IntegerObject) -> Obje
     return arr.elements.get(idx as usize).expect("uhohhh").to_owned();
 }
 
+fn eval_hash_index_expression(hash: Object, index: Object) -> Object {
+    let key = match index {
+        Object::Integer(o) => o.hash_key(),
+        Object::Boolean(o) => o.hash_key(),
+        Object::String(o) => o.hash_key(),
+        _ => return Object::new_error(format!("unusable as hash key: {}", index.type_name()))
+    };
+    if let Object::Hash(ho) = hash {
+        let res = ho.pairs.get(&key);
+        match res {
+            Some(v) => return v.value.clone(),
+            None => return NULL_OBJ
+        }
+    } else {
+        return NULL_OBJ
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use crate::environment::Environment;
-    use crate::evaluator::{self, NULL_OBJ, eval};
+    use crate::evaluator::eval;
     use crate::lexer::Lexer;
-    use crate::object::{NullObject, Object};
-    use crate::parser::{ExpectedLiteral, Parser, check_parser_errors};
+    use crate::object::{BooleanObject, HashKey, Hashable, IntegerObject, Object, StringObject};
+    use crate::parser::{ExpectedLiteral, Parser};
 
     fn test_eval(input: &str) -> Option<Object> {
         let l = Lexer::new(input);
@@ -568,6 +616,10 @@ mod tests {
             ),
             ("foobar", "identifier not found: foobar"),
             ("\"Hello\" - \"World\"", "unknown operator STRING - STRING"),
+            (
+                "{\"name\": \"Monkey\"}[fn(x) { x }];",
+                "unusable as hash key: FUNCTION",
+            ),
         ];
 
         let mut failures: Vec<String> = Vec::new();
@@ -943,6 +995,118 @@ map(a, double);
                 input,
                 &mut failures,
             );
+        }
+
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn test_hash_literals() {
+        let input = r#"let two = "two";
+{
+    "one": 10 - 9,
+    two: 1 + 1,
+    "thr" + "ee": 6 / 2,
+    4: 4,
+    true: 5,
+    false: 6
+}"#;
+
+        let mut failures: Vec<String> = Vec::new();
+        let evaluated = test_eval(input);
+
+        let result = match &evaluated {
+            Some(Object::Hash(h)) => h,
+            _ => {
+                failures.push(format!("eval didn't return Hash, got={:?}", evaluated));
+                assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+                return;
+            }
+        };
+
+        let expected: Vec<(HashKey, i64)> = vec![
+            (
+                StringObject {
+                    value: "one".to_string(),
+                }
+                .hash_key(),
+                1,
+            ),
+            (
+                StringObject {
+                    value: "two".to_string(),
+                }
+                .hash_key(),
+                2,
+            ),
+            (
+                StringObject {
+                    value: "three".to_string(),
+                }
+                .hash_key(),
+                3,
+            ),
+            (IntegerObject { value: 4 }.hash_key(), 4),
+            (BooleanObject { value: true }.hash_key(), 5),
+            (BooleanObject { value: false }.hash_key(), 6),
+        ];
+
+        if result.pairs.len() != expected.len() {
+            failures.push(format!(
+                "hash has wrong num of pairs, got={}",
+                result.pairs.len()
+            ));
+            assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+            return;
+        }
+
+        for (expected_key, expected_value) in &expected {
+            match result.pairs.get(expected_key) {
+                Some(pair) => {
+                    test_integer_object(
+                        &Some(pair.value.clone()),
+                        *expected_value,
+                        input,
+                        &mut failures,
+                    );
+                }
+                None => {
+                    failures.push(format!(
+                        "no pair for given key in pairs, key={:?}",
+                        expected_key
+                    ));
+                }
+            }
+        }
+
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn test_hash_index_expressions() {
+        enum Expected {
+            Int(i64),
+            Null,
+        }
+
+        let tests = vec![
+            (r#"{"foo": 5}["foo"]"#, Expected::Int(5)),
+            (r#"{"foo": 5}["bar"]"#, Expected::Null),
+            (r#"let key = "foo"; {"foo": 5}[key]"#, Expected::Int(5)),
+            (r#"{}["foo"]"#, Expected::Null),
+            (r#"{5: 5}[5]"#, Expected::Int(5)),
+            (r#"{true: 5}[true]"#, Expected::Int(5)),
+            (r#"{false: 5}[false]"#, Expected::Int(5)),
+        ];
+
+        let mut failures: Vec<String> = Vec::new();
+
+        for (input, expected) in &tests {
+            let evaluated = test_eval(input);
+            match expected {
+                Expected::Int(i) => test_integer_object(&evaluated, *i, input, &mut failures),
+                Expected::Null => test_null_object(&evaluated, input, &mut failures),
+            }
         }
 
         assert!(failures.is_empty(), "\n{}", failures.join("\n"));

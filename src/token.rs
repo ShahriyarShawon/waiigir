@@ -1,4 +1,4 @@
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct Token {
     pub token_type: TokenType,
     pub literal: String,
@@ -14,7 +14,7 @@ impl Token {
 }
 
 #[allow(non_camel_case_types, clippy::upper_case_acronyms)]
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone, Eq, Hash)]
 pub enum TokenType {
     #[default]
     DEFAULT,
@@ -26,6 +26,7 @@ pub enum TokenType {
     PLUS,
     COMMA,
     SEMICOLON,
+    COLON,
     LPAREN,
     RPAREN,
     LBRACE,

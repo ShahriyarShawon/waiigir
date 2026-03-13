@@ -104,6 +104,7 @@ impl Lexer {
                 }
             }
             ';' => t = Token::new(TokenType::SEMICOLON, String::from(self.ch)),
+            ':' => t = Token::new(TokenType::COLON, String::from(self.ch)),
             '(' => t = Token::new(TokenType::LPAREN, String::from(self.ch)),
             ')' => t = Token::new(TokenType::RPAREN, String::from(self.ch)),
             ',' => t = Token::new(TokenType::COMMA, String::from(self.ch)),
@@ -177,6 +178,7 @@ return false;
 \"foobar\"
 \"foo bar\"
 [1, 2];
+{\"foo\": \"bar\"}
 ";
 
         let tests: Vec<(TokenType, &str)> = vec![
@@ -261,7 +263,11 @@ return false;
             (TokenType::INT, "2"),
             (TokenType::RBRACKET, "]"),
             (TokenType::SEMICOLON, ";"),
-            (TokenType::EOF, ""),
+            (TokenType::LBRACE, "{"),
+            (TokenType::STRING, "foo"),
+            (TokenType::COLON, ":"),
+            (TokenType::STRING, "bar"),
+            (TokenType::RBRACE, "}"),
             (TokenType::EOF, ""),
         ];
         let mut l = Lexer::new(input);
