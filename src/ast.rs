@@ -1,11 +1,6 @@
 use crate::token;
 use std::fmt;
 
-pub trait Node {
-    fn token_literal(&self) -> String;
-    fn to_string(&self) -> String;
-}
-
 pub struct Program {
     pub statements: Vec<Statement>,
 }
@@ -25,44 +20,54 @@ pub enum Statement {
     Expression(ExpressionStatement),
 }
 
+impl fmt::Display for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Statement::Let(s) => {
+                let val = if let Some(v) = &s.value {
+                    &v.to_string()
+                } else {
+                    ""
+                };
+                write!(
+                    f,
+                    "{} {} = {};",
+                    &s.token.literal.clone(),
+                    s.name.to_string(),
+                    val
+                )
+            }
+            Statement::Return(s) => {
+                // let mut out = String::new();
+                // out += &format!("{} ", s.token.literal.clone());
+                //
+                // if let Some(v) = &s.return_value {
+                //     out += &v.to_string()
+                // }
+                // out += ";";
+                //
+                // out;
+                let val = match &s.return_value {
+                    Some(v) => v.to_string(),
+                    None => "".to_string(),
+                };
+                write!(f, "{} {};", s.token.literal.clone(), val)
+            }
+            Statement::Expression(s) => match &s.expression {
+                Some(thing) => write!(f, "{}", thing.to_string()),
+                None => write!(f, ""),
+            },
+        }
+    }
+}
+
 #[allow(dead_code)]
-impl Node for Statement {
-    fn token_literal(&self) -> String {
+impl Statement {
+    pub fn token_literal(&self) -> String {
         match self {
             Statement::Let(s) => s.token.literal.clone(),
             Statement::Return(s) => s.token.literal.clone(),
             Statement::Expression(s) => s.token.literal.clone(),
-        }
-    }
-
-    fn to_string(&self) -> String {
-        match self {
-            Statement::Let(s) => {
-                let mut out = String::new();
-                out += &format!("{} {} = ", &s.token.literal.clone(), s.name.to_string());
-
-                if let Some(v) = &s.value {
-                    out += &v.to_string()
-                }
-
-                out += ";";
-                out
-            }
-            Statement::Return(s) => {
-                let mut out = String::new();
-                out += &format!("{} ", s.token.literal.clone());
-
-                if let Some(v) = &s.return_value {
-                    out += &v.to_string()
-                }
-                out += ";";
-
-                out
-            }
-            Statement::Expression(s) => match &s.expression {
-                Some(thing) => thing.to_string(),
-                None => String::new(),
-            },
         }
     }
 }
@@ -122,14 +127,9 @@ pub enum Expression {
     Hash(HashLiteral),
 }
 
-#[allow(dead_code)]
-impl Node for Expression {
-    fn token_literal(&self) -> String {
-        todo!()
-    }
-
-    fn to_string(&self) -> String {
-        match self {
+impl fmt::Display for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let res = match self {
             Expression::Identifier(ie) => ie.value.clone(),
             Expression::Integer(ie) => ie.to_string(),
             Expression::Prefix(pe) => pe.to_string(),
@@ -143,7 +143,9 @@ impl Node for Expression {
             Expression::Index(ie) => ie.to_string(),
             Expression::Hash(he) => he.to_string(),
             _ => todo!(),
-        }
+        };
+
+        write!(f, "{}", res)
     }
 }
 
@@ -165,14 +167,17 @@ pub struct IdentifierExpression {
     pub value: String,
 }
 
+// Used for testing
 #[allow(dead_code)]
-impl Node for IdentifierExpression {
-    fn token_literal(&self) -> String {
+impl IdentifierExpression {
+    pub fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
+}
 
-    fn to_string(&self) -> String {
-        self.value.clone()
+impl fmt::Display for IdentifierExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value)
     }
 }
 
@@ -184,16 +189,9 @@ pub struct PrefixExpression {
     pub right: Box<Expression>,
 }
 
-#[allow(dead_code)]
-impl Node for PrefixExpression {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
-    }
-
-    fn to_string(&self) -> String {
-        let mut out = String::new();
-        out += &format!("({}{})", self.operator, self.right.to_string());
-        out
+impl fmt::Display for PrefixExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}{})", self.operator, self.right)
     }
 }
 
@@ -206,23 +204,36 @@ pub struct InfixExpression {
     pub right: Box<Expression>,
 }
 
-#[allow(dead_code)]
-impl Node for InfixExpression {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
-    }
-
-    fn to_string(&self) -> String {
-        let mut out = String::new();
-        out += &format!(
+impl fmt::Display for InfixExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
             "({} {} {})",
             self.left.to_string(),
             self.operator,
             self.right.to_string()
-        );
-        out
+        )
     }
 }
+
+// TODO: Remove
+// #[allow(dead_code)]
+// impl Node for InfixExpression {
+//     fn token_literal(&self) -> String {
+//         self.token.literal.clone()
+//     }
+//
+//     fn to_string(&self) -> String {
+//         let mut out = String::new();
+//         out += &format!(
+//             "({} {} {})",
+//             self.left.to_string(),
+//             self.operator,
+//             self.right.to_string()
+//         );
+//         out
+//     }
+// }
 
 #[allow(dead_code)]
 #[derive(Debug, Default, Clone)]
@@ -230,15 +241,9 @@ pub struct IntegerLiteral {
     pub token: token::Token,
     pub value: i64,
 }
-
-#[allow(dead_code)]
-impl Node for IntegerLiteral {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
-    }
-
-    fn to_string(&self) -> String {
-        self.token.literal.clone()
+impl fmt::Display for IntegerLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.token.literal.clone())
     }
 }
 
@@ -249,14 +254,9 @@ pub struct BooleanExpression {
     pub value: bool,
 }
 
-#[allow(dead_code)]
-impl Node for BooleanExpression {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
-    }
-
-    fn to_string(&self) -> String {
-        self.token.literal.clone()
+impl fmt::Display for BooleanExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.token.literal.clone())
     }
 }
 
@@ -269,24 +269,19 @@ pub struct IfExpression {
     pub alternative: Option<Box<BlockStatement>>,
 }
 
-#[allow(dead_code)]
-impl Node for IfExpression {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
-    }
-
-    fn to_string(&self) -> String {
-        let mut out = format!(
-            "if {} {}",
+impl fmt::Display for IfExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let alt = match &self.alternative {
+            Some(v) => &format!("else {}", v),
+            _ => "",
+        };
+        write!(
+            f,
+            "if {} {} {}",
             self.condition.to_string(),
-            self.consequence.to_string()
-        );
-
-        if let Some(a) = &self.alternative {
-            out += &format!("else {}", a)
-        }
-
-        out
+            self.consequence,
+            alt
+        )
     }
 }
 
@@ -314,25 +309,40 @@ pub struct CallExpression {
     pub arguments: Vec<Expression>,
 }
 
-#[allow(dead_code)]
-impl Node for CallExpression {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
-    }
-
-    fn to_string(&self) -> String {
-        let mut out = String::new();
-        let mut args: Vec<String> = Vec::new();
-
-        for a in &self.arguments {
-            args.push(a.to_string());
-        }
-
-        out += &format!("{}({})", self.function.to_string(), args.join(" "));
-
-        out
+impl fmt::Display for CallExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}({})",
+            self.function.to_string(),
+            self.arguments
+                .iter()
+                .map(|a| a.to_string())
+                .collect::<Vec<String>>()
+                .join(" ")
+        )
     }
 }
+
+// #[allow(dead_code)]
+// impl Node for CallExpression {
+//     fn token_literal(&self) -> String {
+//         self.token.literal.clone()
+//     }
+//
+//     fn to_string(&self) -> String {
+//         let mut out = String::new();
+//         let mut args: Vec<String> = Vec::new();
+//
+//         for a in &self.arguments {
+//             args.push(a.to_string());
+//         }
+//
+//         out += &format!("{}({})", self.function.to_string(), args.join(" "));
+//
+//         out
+//     }
+// }
 
 #[allow(dead_code)]
 #[derive(Debug, Default, Clone)]
@@ -341,14 +351,9 @@ pub struct StringLiteral {
     pub value: String,
 }
 
-#[allow(dead_code)]
-impl Node for StringLiteral {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
-    }
-
-    fn to_string(&self) -> String {
-        self.token.literal.clone()
+impl fmt::Display for StringLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.token.literal.clone())
     }
 }
 
@@ -359,23 +364,15 @@ pub struct ArrayLiteral {
     pub elements: Vec<Expression>,
 }
 
-#[allow(dead_code)]
-impl Node for ArrayLiteral {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
-    }
-
-    fn to_string(&self) -> String {
-        let mut out = String::new();
-        out += &format!(
-            "[{}]",
-            self.elements
-                .iter()
-                .map(|e| e.to_string())
-                .collect::<Vec<String>>()
-                .join(", ")
-        );
-        out
+impl fmt::Display for ArrayLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let elements = self
+            .elements
+            .iter()
+            .map(|e| e.to_string())
+            .collect::<Vec<String>>()
+            .join(", ");
+        write!(f, "[{}]", elements)
     }
 }
 
@@ -387,15 +384,9 @@ pub struct IndexExpression {
     pub index: Box<Expression>,
 }
 
-#[allow(dead_code)]
-impl Node for IndexExpression {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
-    }
-
-    fn to_string(&self) -> String {
-        let out = format!("({}[{}])", self.left.to_string(), self.index.to_string());
-        out
+impl fmt::Display for IndexExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}[{}])", self.left, self.index)
     }
 }
 
@@ -406,19 +397,15 @@ pub struct HashLiteral {
     pub pairs: Vec<(Expression, Expression)>,
 }
 
-impl Node for HashLiteral {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
-    }
-
-    fn to_string(&self) -> String {
+impl fmt::Display for HashLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut pair_string: Vec<String> = Vec::new();
 
         for (key, value) in self.pairs.iter() {
-            pair_string.push(format!("{}:{}", key.to_string(), value.to_string()));
+            pair_string.push(format!("{}:{}", key, value));
         }
 
-        format!("{{ {} }}", pair_string.join(", "))
+        write!(f, "{{ {} }}", pair_string.join(", "))
     }
 }
 

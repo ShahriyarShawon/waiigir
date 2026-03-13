@@ -583,8 +583,6 @@ pub fn check_parser_errors(p: &Parser) {
 
 #[cfg(test)]
 mod tests {
-    use self::ast::Node;
-
     use super::*;
     use crate::ast::Expression;
     use crate::ast::Statement;
