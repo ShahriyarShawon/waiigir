@@ -1,4 +1,4 @@
-use crate::evaluator::NULL_OBJ;
+use crate::evaluator::Evaluator;
 use crate::object::Object;
 
 pub fn get_builtin(fname: &str) -> Option<Object> {
@@ -8,7 +8,7 @@ pub fn get_builtin(fname: &str) -> Option<Object> {
                 println!("{}", arg);
             }
 
-            NULL_OBJ
+            Evaluator::NULL_OBJ
         })),
         "len" => Some(Object::BuiltInFunction(|args: Vec<Object>| -> Object {
             if args.len() != 1 {
@@ -38,7 +38,7 @@ pub fn get_builtin(fname: &str) -> Option<Object> {
             match &args[0] {
                 Object::Array(ao) => {
                     if ao.is_empty() {
-                        NULL_OBJ
+                        Evaluator::NULL_OBJ
                     } else {
                         ao[0].clone()
                     }
@@ -59,7 +59,7 @@ pub fn get_builtin(fname: &str) -> Option<Object> {
             match &args[0] {
                 Object::Array(ao) => match ao.last() {
                     Some(v) => v.clone(),
-                    None => NULL_OBJ,
+                    None => Evaluator::NULL_OBJ,
                 },
                 other => Object::new_error(format!(
                     "argument to `last` must be ARRAY, got {}",
@@ -77,7 +77,7 @@ pub fn get_builtin(fname: &str) -> Option<Object> {
 
             match &args[0] {
                 Object::Array(ao) => match ao.len() {
-                    0 => NULL_OBJ,
+                    0 => Evaluator::NULL_OBJ,
                     1 => Object::Array(Vec::new()),
                     _ => Object::Array(ao[1..].to_vec()),
                 },
