@@ -1,4 +1,3 @@
-use crate::TokenType;
 use crate::ast;
 use crate::ast::BlockStatement;
 use crate::ast::BooleanExpression;
@@ -13,6 +12,7 @@ use crate::ast::ReturnStatement;
 use crate::ast::StringLiteral;
 use crate::lexer;
 use crate::token;
+use crate::token::TokenType;
 
 type PrefixParseFn = fn(&mut Parser) -> Option<ast::Expression>;
 type InfixParseFn = fn(&mut Parser, ast::Expression) -> Option<ast::Expression>;
@@ -165,7 +165,7 @@ impl Parser {
         Some(stmt)
     }
 
-    fn parse_expression(&mut self, precendence: Precedence) -> Option<ast::Expression> {
+    fn parse_expression(&mut self, precedence: Precedence) -> Option<ast::Expression> {
         let prefix = match self.prefix_parse_fns(&self.cur_token.token_type) {
             Some(p) => p,
             None => {
@@ -176,14 +176,14 @@ impl Parser {
 
         let mut left_exp = prefix(self);
 
-        while !self.peek_token_is(&TokenType::SEMICOLON) && precendence < self.peek_precedence() {
+        while !self.peek_token_is(&TokenType::SEMICOLON) && precedence < self.peek_precedence() {
             let infix = match self.infix_parse_fns(&self.peek_token.token_type) {
                 Some(i) => i,
                 None => return left_exp,
             };
 
             self.next_token();
-            left_exp = infix(self, left_exp.expect("I HOPE SO"));
+            left_exp = infix(self, left_exp?);
         }
 
         left_exp
@@ -225,10 +225,7 @@ impl Parser {
 
         self.next_token();
 
-        expression.right = Box::new(
-            self.parse_expression(Precedence::PREFIX)
-                .expect("damn, you fucked up"),
-        );
+        expression.right = Box::new(self.parse_expression(Precedence::PREFIX)?);
 
         Some(ast::Expression::Prefix(expression))
     }
@@ -241,14 +238,10 @@ impl Parser {
             ..Default::default()
         };
 
-        let precendence = self.cur_precedence();
+        let precedence = self.cur_precedence();
         self.next_token();
-        let exp = self.parse_expression(precendence);
-        match exp {
-            Some(e) => expression.right = Box::new(e),
-            None => return None,
-        };
 
+        expression.right = Box::new(self.parse_expression(precedence)?);
         Some(ast::Expression::Infix(expression))
     }
 
@@ -335,10 +328,7 @@ impl Parser {
         }
 
         self.next_token();
-        expression.condition = Box::new(
-            self.parse_expression(Precedence::LOWEST)
-                .expect("BETTER BE"),
-        );
+        expression.condition = Box::new(self.parse_expression(Precedence::LOWEST)?);
 
         if !self.expect_peek(&TokenType::RPAREN) {
             return None;
@@ -404,7 +394,7 @@ impl Parser {
             return None;
         }
 
-        lit.parameters = self.parse_function_parameters().expect("PARAM ERROR");
+        lit.parameters = self.parse_function_parameters()?;
 
         if !self.expect_peek(&TokenType::LBRACE) {
             return None;
@@ -425,9 +415,7 @@ impl Parser {
     fn parse_array_literal(&mut self) -> Option<ast::Expression> {
         let arr = ast::ArrayLiteral {
             token: self.cur_token.clone(),
-            elements: self
-                .parse_expression_list(TokenType::RBRACKET)
-                .expect("SUUURE BUD"),
+            elements: self.parse_expression_list(TokenType::RBRACKET)?,
         };
 
         Some(ast::Expression::Array(arr))
@@ -449,7 +437,7 @@ impl Parser {
 
             self.next_token();
             let value = self.parse_expression(Precedence::LOWEST);
-            hash.pairs.push((key.expect("hehe"), value.expect("hoho")));
+            hash.pairs.push((key?, value?));
 
             if !self.peek_token_is(&TokenType::RBRACE) && !self.expect_peek(&TokenType::COMMA) {
                 return None;
@@ -491,7 +479,7 @@ impl Parser {
         Some(list)
     }
 
-    fn cur_token_is(&mut self, t: TokenType) -> bool {
+    fn cur_token_is(&self, t: TokenType) -> bool {
         self.cur_token.token_type == t
     }
 
@@ -583,8 +571,6 @@ pub fn check_parser_errors(p: &Parser) {
 
 #[cfg(test)]
 mod tests {
-    use self::ast::Node;
-
     use super::*;
     use crate::ast::Expression;
     use crate::ast::Statement;
@@ -969,8 +955,6 @@ mod tests {
                 ExpectedLiteral::Boolean(eb) => test_boolean_literal(&exp.right, eb),
                 _ => false,
             };
-
-            // test_integer_literal(&exp.right, expected_value);
         }
     }
 

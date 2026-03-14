@@ -10,8 +10,6 @@ mod token;
 mod code;
 mod compiler;
 
-use crate::token::*;
-
 fn main() {
     repl::start();
 }
