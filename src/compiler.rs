@@ -91,11 +91,14 @@ impl Compiler {
                 ast::Statement::Return(_rs) => {
                     todo!()
                 }
-                ast::Statement::Expression(es) => match &es.expression {
-                    Some(e) => self.compile_expression(e)?,
-                    None => todo!(),
-                },
-            }
+                ast::Statement::Expression(es) => {
+                    match &es.expression {
+                        Some(e) => self.compile_expression(e)?,
+                        None => todo!(),
+                    }
+                    self.emit(Opcode::OpPop, &[])
+                }
+            };
         }
         Ok(())
     }
@@ -244,15 +247,28 @@ mod tests {
 
     #[test]
     fn test_integer_arithmetic() {
-        let tests = vec![CompilerTestCase {
-            input: "1 + 2".to_string(),
-            expected_constants: vec![ExpectedLiteral::Int(1), ExpectedLiteral::Int(2)],
-            expected_instructions: vec![
-                Instructions(code::make(&Opcode::OpConstant, &vec![0])),
-                Instructions(code::make(&Opcode::OpConstant, &vec![1])),
-                Instructions(code::make(&Opcode::OpAdd, &vec![])),
-            ],
-        }];
+        let tests = vec![
+            CompilerTestCase {
+                input: "1 + 2".to_string(),
+                expected_constants: vec![ExpectedLiteral::Int(1), ExpectedLiteral::Int(2)],
+                expected_instructions: vec![
+                    Instructions(code::make(&Opcode::OpConstant, &vec![0])),
+                    Instructions(code::make(&Opcode::OpConstant, &vec![1])),
+                    Instructions(code::make(&Opcode::OpAdd, &vec![])),
+                    Instructions(code::make(&Opcode::OpPop, &vec![])),
+                ],
+            },
+            CompilerTestCase {
+                input: "1; 2".to_string(),
+                expected_constants: vec![ExpectedLiteral::Int(1), ExpectedLiteral::Int(2)],
+                expected_instructions: vec![
+                    Instructions(code::make(&Opcode::OpConstant, &vec![0])),
+                    Instructions(code::make(&Opcode::OpPop, &vec![])),
+                    Instructions(code::make(&Opcode::OpConstant, &vec![1])),
+                    Instructions(code::make(&Opcode::OpPop, &vec![])),
+                ],
+            },
+        ];
 
         run_compiler_tests(&tests);
     }

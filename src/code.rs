@@ -72,6 +72,7 @@ impl DerefMut for Instructions {
 pub enum Opcode {
     OpConstant = 0,
     OpAdd,
+    OpPop,
 }
 
 impl TryFrom<u8> for Opcode {
@@ -111,6 +112,10 @@ fn lookup(op: &Opcode) -> Result<Definition, String> {
         }),
         Opcode::OpAdd => Ok(Definition {
             name: "OpAdd".to_string(),
+            operand_widths: vec![],
+        }),
+        Opcode::OpPop => Ok(Definition {
+            name: "OpPop".to_string(),
             operand_widths: vec![],
         }),
     }

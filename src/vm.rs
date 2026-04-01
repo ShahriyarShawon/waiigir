@@ -9,6 +9,7 @@ pub struct VM {
     pub constants: Vec<Object>,
     pub instructions: Instructions,
     stack: Vec<Object>,
+    last_popped: Option<Object> 
 }
 
 impl VM {
@@ -17,6 +18,7 @@ impl VM {
             constants: bytecode.constants,
             instructions: bytecode.instructions,
             stack: Vec::with_capacity(STACK_SIZE),
+            last_popped: None
         }
     }
 
@@ -37,7 +39,14 @@ impl VM {
     }
 
     fn pop(&mut self) -> Result<Object, String> {
-        self.stack.pop().ok_or(String::from("stack underflow"))
+        match self.stack.pop() {
+            Some(o) => {
+                self.last_popped = Some(o.clone());
+                Ok(o)
+            },
+            None => Err(String::from("stack underflow"))
+        }
+        // self.stack.pop().ok_or(String::from("stack underflow"))
     }
 
     pub fn run(&mut self) -> Result<(), String> {
@@ -78,12 +87,23 @@ impl VM {
                         Err(e) => return Err(e),
                     };
                 }
+                Opcode::OpPop => {
+                    self.pop()?;
+                }
             }
 
             ip += 1;
         }
 
         Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub fn last_popped_stack_elem(&self) -> Option<Object> {
+        match &self.last_popped {
+            Some(l) => Some(l.clone()),
+            None => None
+        }
     }
 }
 
@@ -162,8 +182,8 @@ mod tests {
                 Ok(_) => {}
             }
 
-            let stack_elm = vm.stack_top();
-            match stack_elm {
+            let stack_elem = vm.last_popped_stack_elem();
+            match stack_elem {
                 Some(s) => test_expected_object(&t.expected, s)?,
                 None => return Err(format!("tried to pop stack while stack empty")),
             }
