@@ -3,13 +3,15 @@ use crate::compiler::Bytecode;
 use crate::object::Object;
 
 const STACK_SIZE: usize = 2048;
+const TRUE_OBJ: Object = Object::Boolean(true);
+const FALSE_OBJ: Object = Object::Boolean(false);
 
 #[derive(Debug)]
 pub struct VM {
     pub constants: Vec<Object>,
     pub instructions: Instructions,
     stack: Vec<Object>,
-    last_popped: Option<Object> 
+    last_popped: Option<Object>,
 }
 
 impl VM {
@@ -18,7 +20,7 @@ impl VM {
             constants: bytecode.constants,
             instructions: bytecode.instructions,
             stack: Vec::with_capacity(STACK_SIZE),
-            last_popped: None
+            last_popped: None,
         }
     }
 
@@ -43,10 +45,53 @@ impl VM {
             Some(o) => {
                 self.last_popped = Some(o.clone());
                 Ok(o)
-            },
-            None => Err(String::from("stack underflow"))
+            }
+            None => Err(String::from("stack underflow")),
         }
         // self.stack.pop().ok_or(String::from("stack underflow"))
+    }
+
+    fn execute_binary_operation(&mut self, op: &Opcode) -> Result<(), String> {
+        let right_value = match self.pop() {
+            Ok(o) => match o {
+                Object::Integer(i) => i,
+                _ => return Err(format!("unsupported types for binary operation {}", o)),
+            },
+            Err(e) => return Err(e),
+        };
+
+        let left_value = match self.pop() {
+            Ok(o) => match o {
+                Object::Integer(i) => i,
+                _ => return Err(format!("unsupported types for binary operation {}", o)),
+            },
+            Err(e) => return Err(e),
+        };
+
+        self.execute_binary_integer_operation(op, left_value, right_value)
+    }
+
+    fn execute_binary_integer_operation(
+        &mut self,
+        op: &Opcode,
+        left: i64,
+        right: i64,
+    ) -> Result<(), String> {
+        let res = match op {
+            Opcode::OpAdd => left + right,
+            Opcode::OpSub => left - right,
+            Opcode::OpMul => left * right,
+            Opcode::OpDiv => left / right,
+            _ => return Err(format!("unknown integer operator: {}", op)),
+        };
+        self.push(Object::Integer(res))
+    }
+
+    fn run_op_constant(&mut self, ip: &mut usize) -> Result<(), String> {
+        let const_index = read_uint16(&self.instructions[*ip + 1..]) as usize;
+        *ip += 2;
+        let res = self.push(self.constants[const_index].clone());
+        res
     }
 
     pub fn run(&mut self) -> Result<(), String> {
@@ -58,38 +103,19 @@ impl VM {
 
             let op = unsafe { std::mem::transmute::<u8, Opcode>(self.instructions[ip]) };
             match op {
-                Opcode::OpConstant => {
-                    let const_index = read_uint16(&self.instructions[ip + 1..]) as usize;
-                    ip += 2;
-                    let res = self.push(self.constants[const_index].clone());
-                    res?;
+                Opcode::OpAdd | Opcode::OpSub | Opcode::OpMul | Opcode::OpDiv => {
+                    self.execute_binary_operation(&op)?
                 }
-                Opcode::OpAdd => {
-                    let right_value = match self.pop() {
-                        Ok(o) => match o {
-                            Object::Integer(i) => i,
-                            _ => return Err(format!("expected int, got {}", o)),
-                        },
-                        Err(e) => return Err(e),
-                    };
-
-                    let left_value = match self.pop() {
-                        Ok(o) => match o {
-                            Object::Integer(i) => i,
-                            _ => return Err(format!("expected int, got {}", o)),
-                        },
-                        Err(e) => return Err(e),
-                    };
-
-                    let res = left_value + right_value;
-                    match self.push(Object::Integer(res)) {
-                        Ok(()) => {}
-                        Err(e) => return Err(e),
-                    };
-                }
+                Opcode::OpConstant => self.run_op_constant(&mut ip)?,
                 Opcode::OpPop => {
                     self.pop()?;
                 }
+                Opcode::OpTrue => {
+                    self.push(TRUE_OBJ)?
+                },
+                Opcode::OpFalse => {
+                    self.push(FALSE_OBJ)?
+                },
             }
 
             ip += 1;
@@ -102,7 +128,7 @@ impl VM {
     pub fn last_popped_stack_elem(&self) -> Option<Object> {
         match &self.last_popped {
             Some(l) => Some(l.clone()),
-            None => None
+            None => None,
         }
     }
 }
@@ -150,6 +176,21 @@ mod tests {
         }
     }
 
+    fn test_boolean_object(expected: bool, actual: Object) -> Result<(), String> {
+        match actual {
+            Object::Boolean(bo) => {
+                if bo != expected {
+                    return Err(format!(
+                        "object hast wrong value. got={}, want={}",
+                        bo, expected
+                    ));
+                }
+                Ok(())
+            }
+            _ => Err(format!("object is not boolean. got={}", actual)),
+        }
+    }
+
     fn test_expected_object(expected: &ExpectedLiteral, actual: Object) -> Result<(), String> {
         match expected {
             ExpectedLiteral::Int(i) => {
@@ -157,6 +198,13 @@ mod tests {
                 match res {
                     Ok(_) => {}
                     Err(e) => return Err(e),
+                }
+            },
+            ExpectedLiteral::Boolean(b) => {
+                let res = test_boolean_object(*b, actual);
+                match res {
+                    Ok(_) => {},
+                    Err(e) => return Err(e)
                 }
             }
             _ => todo!(),
@@ -197,11 +245,34 @@ mod tests {
             VmTestCase::new("1", ExpectedLiteral::Int(1)),
             VmTestCase::new("2", ExpectedLiteral::Int(2)),
             VmTestCase::new("1+2", ExpectedLiteral::Int(3)),
+            VmTestCase::new("1 - 2", ExpectedLiteral::Int(-1)),
+            VmTestCase::new("1 * 2", ExpectedLiteral::Int(2)),
+            VmTestCase::new("4 / 2", ExpectedLiteral::Int(2)),
+            VmTestCase::new("50 / 2 * 2 + 10 - 5", ExpectedLiteral::Int(55)),
+            VmTestCase::new("5 + 5 + 5 + 5 - 10", ExpectedLiteral::Int(10)),
+            VmTestCase::new("2 * 2 * 2 * 2 * 2", ExpectedLiteral::Int(32)),
+            VmTestCase::new("5 * 2 + 10", ExpectedLiteral::Int(20)),
+            VmTestCase::new("5 + 2 * 10", ExpectedLiteral::Int(25)),
+            VmTestCase::new("5 * (2 + 10)", ExpectedLiteral::Int(60)),
         ];
 
         match run_vm_tests(&tests) {
             Ok(()) => {}
             Err(e) => panic!("test_integer_arithmetic error: {}", e),
+        }
+    }
+
+
+    #[test]
+    fn test_boolean_expressions() {
+        let tests = vec![
+            VmTestCase::new("true", ExpectedLiteral::Boolean(true)),
+            VmTestCase::new("false", ExpectedLiteral::Boolean(false)),
+        ];
+
+        match run_vm_tests(&tests) {
+            Ok(()) => {}
+            Err(e) => panic!("test_boolean_expressions error: {}", e),
         }
     }
 }

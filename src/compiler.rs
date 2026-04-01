@@ -69,13 +69,33 @@ impl Compiler {
                         self.emit(Opcode::OpAdd, &[]);
                         Ok(())
                     }
+                    "-" => {
+                        self.emit(Opcode::OpSub, &[]);
+                        Ok(())
+                    }
+                    "*" => {
+                        self.emit(Opcode::OpMul, &[]);
+                        Ok(())
+                    }
+                    "/" => {
+                        self.emit(Opcode::OpDiv, &[]);
+                        Ok(())
+                    }
                     _ => Err(format!("unknown operator {}", ie.operator)),
                 }
+                
             }
             Expression::Integer(ie) => {
                 let integer = Object::Integer(ie.value);
                 let const_pos = self.add_constant(integer);
                 self.emit(Opcode::OpConstant, &[const_pos]);
+                Ok(())
+            },
+            Expression::Boolean(be) => {
+                match be.value {
+                    true => self.emit(Opcode::OpTrue, &vec![]),
+                    false => self.emit(Opcode::OpFalse, &vec![]),
+                };
                 Ok(())
             }
             _ => todo!(),
@@ -113,6 +133,7 @@ impl Compiler {
 
 #[cfg(test)]
 mod tests {
+    use crate::code::make;
     use crate::parser::ExpectedLiteral;
     use crate::{ast::Program, lexer::Lexer, parser::Parser};
 
@@ -268,6 +289,51 @@ mod tests {
                     Instructions(code::make(&Opcode::OpPop, &vec![])),
                 ],
             },
+            CompilerTestCase {
+                input: "1 - 2".to_string(),
+                expected_constants: vec![ExpectedLiteral::Int(1), ExpectedLiteral::Int(2)],
+                expected_instructions: vec![
+                    Instructions(code::make(&Opcode::OpConstant, &vec![0])),
+                    Instructions(code::make(&Opcode::OpConstant, &vec![1])),
+                    Instructions(code::make(&Opcode::OpSub, &vec![])),
+                    Instructions(code::make(&Opcode::OpPop, &vec![])),
+                ],
+            },
+            CompilerTestCase {
+                input: "1 * 2".to_string(),
+                expected_constants: vec![ExpectedLiteral::Int(1), ExpectedLiteral::Int(2)],
+                expected_instructions: vec![
+                    Instructions(code::make(&Opcode::OpConstant, &vec![0])),
+                    Instructions(code::make(&Opcode::OpConstant, &vec![1])),
+                    Instructions(code::make(&Opcode::OpMul, &vec![])),
+                    Instructions(code::make(&Opcode::OpPop, &vec![])),
+                ],
+            },
+            CompilerTestCase {
+                input: "2 / 1".to_string(),
+                expected_constants: vec![ExpectedLiteral::Int(2), ExpectedLiteral::Int(1)],
+                expected_instructions: vec![
+                    Instructions(code::make(&Opcode::OpConstant, &vec![0])),
+                    Instructions(code::make(&Opcode::OpConstant, &vec![1])),
+                    Instructions(code::make(&Opcode::OpDiv, &vec![])),
+                    Instructions(code::make(&Opcode::OpPop, &vec![])),
+                ],
+            },
+        ];
+
+        run_compiler_tests(&tests);
+    }
+    #[test]
+    fn test_boolean_expressions() {
+        let tests = vec![
+            CompilerTestCase{
+                input: "true".to_string(),
+                expected_constants: vec![],
+                expected_instructions: vec![
+                    Instructions(make(&Opcode::OpTrue, &vec![])),
+                    Instructions(make(&Opcode::OpPop, &vec![])),
+                ]
+            }
         ];
 
         run_compiler_tests(&tests);

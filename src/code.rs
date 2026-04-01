@@ -1,7 +1,6 @@
 use std::fmt::{self};
 use std::ops::{Deref, DerefMut};
 
-// pub type Instructions = Vec<u8>;
 #[derive(Debug, Clone)]
 pub struct Instructions(pub Vec<u8>);
 
@@ -73,6 +72,11 @@ pub enum Opcode {
     OpConstant = 0,
     OpAdd,
     OpPop,
+    OpSub,
+    OpMul,
+    OpDiv,
+    OpTrue,
+    OpFalse
 }
 
 impl TryFrom<u8> for Opcode {
@@ -81,6 +85,10 @@ impl TryFrom<u8> for Opcode {
         match value {
             0 => Ok(Opcode::OpConstant),
             1 => Ok(Opcode::OpAdd),
+            2 => Ok(Opcode::OpPop),
+            3 => Ok(Opcode::OpSub),
+            4 => Ok(Opcode::OpMul),
+            5 => Ok(Opcode::OpDiv),
             _ => Err(format!("opcode {}, undefined", value)),
         }
     }
@@ -116,6 +124,26 @@ fn lookup(op: &Opcode) -> Result<Definition, String> {
         }),
         Opcode::OpPop => Ok(Definition {
             name: "OpPop".to_string(),
+            operand_widths: vec![],
+        }),
+        Opcode::OpSub => Ok(Definition {
+            name: "OpSub".to_string(),
+            operand_widths: vec![],
+        }),
+        Opcode::OpMul => Ok(Definition {
+            name: "OpMul".to_string(),
+            operand_widths: vec![],
+        }),
+        Opcode::OpDiv => Ok(Definition {
+            name: "OpDiv".to_string(),
+            operand_widths: vec![],
+        }),
+        Opcode::OpTrue => Ok(Definition {
+            name: "OpTrue".to_string(),
+            operand_widths: vec![],
+        }),
+        Opcode::OpFalse => Ok(Definition {
+            name: "OpFalse".to_string(),
             operand_widths: vec![],
         }),
     }
