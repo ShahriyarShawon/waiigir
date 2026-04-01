@@ -21,8 +21,8 @@ impl Instructions {
         }
 
         match operand_count {
-            0 => format!("{}", def.name),
-            1 => return format!("{} {}", def.name, operands[0]),
+            0 => def.name.to_string(),
+            1 => format!("{} {}", def.name, operands[0]),
             _ => format!("ERROR: unhandled operandCount for {}\n", def.name),
         }
     }
@@ -37,7 +37,7 @@ impl fmt::Display for Instructions {
             let def = match lookup_byte(self[i]) {
                 Ok(d) => d,
                 Err(e) => {
-                    eprintln!("ERROR: {}", e);
+                    writeln!(f, "ERROR: {}", e)?;
                     break;
                 }
             };
@@ -113,7 +113,6 @@ fn lookup(op: &Opcode) -> Result<Definition, String> {
             name: "OpAdd".to_string(),
             operand_widths: vec![],
         }),
-        _ => Err(format!("opcode {} undefined", op)),
     }
 }
 
@@ -127,7 +126,7 @@ pub fn make(op: &Opcode, operands: &[i32]) -> Vec<u8> {
     };
 
     let mut instruction_len: u8 = 1;
-    instruction_len = instruction_len + def.operand_widths.iter().sum::<u8>();
+    instruction_len += def.operand_widths.iter().sum::<u8>();
     let mut instruction = vec![0u8; instruction_len as usize];
     instruction[0] = op.clone() as u8;
 
@@ -144,7 +143,7 @@ pub fn make(op: &Opcode, operands: &[i32]) -> Vec<u8> {
         offset += width as usize;
     }
 
-    return instruction;
+    instruction
 }
 
 pub fn read_uint16(ins: &[u8]) -> u16 {
@@ -162,7 +161,7 @@ pub fn read_operands(def: &Definition, ins: &[u8]) -> (Vec<i32>, usize) {
         }
         offset += width as usize;
     }
-    return (operands, offset);
+    (operands, offset)
 }
 
 #[cfg(test)]

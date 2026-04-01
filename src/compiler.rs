@@ -35,31 +35,30 @@ impl Compiler {
 
     fn add_constant(&mut self, obj: Object) -> i32 {
         self.constants.push(obj);
-        return (self.constants.len() - 1) as i32;
+        (self.constants.len() - 1) as i32
     }
 
     fn add_instruction(&mut self, ins: &[u8]) -> usize {
         let pos_new_instruction = self.instructions.len();
-        self.instructions.extend_from_slice(&ins);
-        return pos_new_instruction;
+        self.instructions.extend_from_slice(ins);
+        pos_new_instruction
     }
 
     fn emit(&mut self, op: Opcode, operands: &[i32]) -> usize {
         let ins = code::make(&op, operands);
-        let pos = self.add_instruction(&ins);
-        return pos;
+        self.add_instruction(&ins)
     }
 
     fn compile_expression(&mut self, es: &Expression) -> Result<(), String> {
         match es {
             Expression::Infix(ie) => {
-                let lres = self.compile_expression(&*ie.left);
+                let lres = self.compile_expression(&ie.left);
                 match lres {
                     Ok(_) => {}
                     Err(e) => return Err(e),
                 }
 
-                let rres = self.compile_expression(&*ie.right);
+                let rres = self.compile_expression(&ie.right);
                 match rres {
                     Ok(_) => {}
                     Err(e) => return Err(e),
@@ -77,7 +76,7 @@ impl Compiler {
                 let integer = Object::Integer(ie.value);
                 let const_pos = self.add_constant(integer);
                 self.emit(Opcode::OpConstant, &[const_pos]);
-                return Ok(());
+                Ok(())
             }
             _ => todo!(),
         }
@@ -93,7 +92,7 @@ impl Compiler {
                     todo!()
                 }
                 ast::Statement::Expression(es) => match &es.expression {
-                    Some(e) => self.compile_expression(&e)?,
+                    Some(e) => self.compile_expression(e)?,
                     None => todo!(),
                 },
             }

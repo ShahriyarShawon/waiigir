@@ -1,9 +1,6 @@
-use crate::ast::Program;
 use crate::code::{Instructions, Opcode, read_uint16};
 use crate::compiler::Bytecode;
-use crate::lexer::Lexer;
 use crate::object::Object;
-use crate::parser::Parser;
 
 const STACK_SIZE: usize = 2048;
 
@@ -12,7 +9,6 @@ pub struct VM {
     pub constants: Vec<Object>,
     pub instructions: Instructions,
     stack: Vec<Object>,
-    sp: usize,
 }
 
 impl VM {
@@ -21,31 +17,22 @@ impl VM {
             constants: bytecode.constants,
             instructions: bytecode.instructions,
             stack: Vec::with_capacity(STACK_SIZE),
-            sp: 0,
         }
     }
 
     pub fn stack_top(&mut self) -> Option<Object> {
-        // if self.sp == 0 {
-        //     return None;
-        // }
-        if self.stack.len() == 0 {
+        if self.stack.is_empty() {
             return None;
         }
-        // return Some(self.stack[self.sp - 1].clone());
-        return self.stack.pop();
+        self.stack.pop()
     }
 
     fn push(&mut self, o: Object) -> Result<(), String> {
-        // if self.sp >= STACK_SIZE {
-        //     return Err(String::from("stack overflow"));
-        // }
         if self.stack.len() >= STACK_SIZE {
             return Err(String::from("stack overflow"));
         }
 
         self.stack.push(o);
-        // self.sp += 1;
         Ok(())
     }
 
@@ -66,10 +53,7 @@ impl VM {
                     let const_index = read_uint16(&self.instructions[ip + 1..]) as usize;
                     ip += 2;
                     let res = self.push(self.constants[const_index].clone());
-                    match res {
-                        Err(e) => return Err(e),
-                        Ok(()) => {}
-                    }
+                    res?;
                 }
                 Opcode::OpAdd => {
                     let right_value = match self.pop() {
@@ -90,23 +74,25 @@ impl VM {
 
                     let res = left_value + right_value;
                     match self.push(Object::Integer(res)) {
-                        Ok(()) => {},
-                        Err(e) => return Err(e)
+                        Ok(()) => {}
+                        Err(e) => return Err(e),
                     };
                 }
-                _ => return Err(format!("unknown opcode {}", op)),
             }
 
             ip += 1;
         }
 
-        return Ok(());
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ast::Program;
+    use crate::lexer::Lexer;
+    use crate::parser::Parser;
     use crate::{compiler::Compiler, object::Object, parser::ExpectedLiteral};
 
     struct VmTestCase {
