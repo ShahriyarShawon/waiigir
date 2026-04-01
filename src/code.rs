@@ -21,8 +21,9 @@ impl Instructions {
         }
 
         match operand_count {
+            0 => format!("{}", def.name),
             1 => return format!("{} {}", def.name, operands[0]),
-            _ => format!("ERROR: unhandled operandCount for {}\n", def.name)
+            _ => format!("ERROR: unhandled operandCount for {}\n", def.name),
         }
     }
 }
@@ -37,7 +38,7 @@ impl fmt::Display for Instructions {
                 Ok(d) => d,
                 Err(e) => {
                     eprintln!("ERROR: {}", e);
-                    continue;
+                    break;
                 }
             };
 
@@ -70,6 +71,7 @@ impl DerefMut for Instructions {
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum Opcode {
     OpConstant = 0,
+    OpAdd,
 }
 
 impl TryFrom<u8> for Opcode {
@@ -77,6 +79,7 @@ impl TryFrom<u8> for Opcode {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Opcode::OpConstant),
+            1 => Ok(Opcode::OpAdd),
             _ => Err(format!("opcode {}, undefined", value)),
         }
     }
@@ -106,6 +109,10 @@ fn lookup(op: &Opcode) -> Result<Definition, String> {
             name: "OpConstant".to_string(),
             operand_widths: vec![2],
         }),
+        Opcode::OpAdd => Ok(Definition {
+            name: "OpAdd".to_string(),
+            operand_widths: vec![],
+        }),
         _ => Err(format!("opcode {} undefined", op)),
     }
 }
@@ -131,10 +138,10 @@ pub fn make(op: &Opcode, operands: &[i32]) -> Vec<u8> {
             2 => {
                 let bytes = (o as u16).to_be_bytes();
                 instruction[offset..offset + bytes.len()].copy_from_slice(&bytes);
-                offset += width as usize;
             }
-            _ => todo!(),
+            _ => {}
         }
+        offset += width as usize;
     }
 
     return instruction;
@@ -199,11 +206,14 @@ mod tests {
     #[test]
     fn test_make() {
         let mut errors: Vec<String> = Vec::new();
-        let tests = vec![(
-            Opcode::OpConstant,
-            vec![65534],
-            vec![Opcode::OpConstant as u8, 255, 254],
-        )];
+        let tests = vec![
+            (
+                Opcode::OpConstant,
+                vec![65534],
+                vec![Opcode::OpConstant as u8, 255, 254],
+            ),
+            (Opcode::OpAdd, vec![], vec![Opcode::OpAdd as u8]),
+        ];
 
         for t in tests {
             let op = t.0;
@@ -234,14 +244,14 @@ mod tests {
     #[test]
     fn test_instructions_string() {
         let instructions = vec![
-            make(&Opcode::OpConstant, &vec![1]),
+            make(&Opcode::OpAdd, &vec![]),
             make(&Opcode::OpConstant, &vec![2]),
             make(&Opcode::OpConstant, &vec![65535]),
         ];
 
-        let expected = r"0000 OpConstant 1
-0003 OpConstant 2
-0006 OpConstant 65535
+        let expected = r"0000 OpAdd
+0001 OpConstant 2
+0004 OpConstant 65535
 ";
 
         let mut concatted = Instructions::new();

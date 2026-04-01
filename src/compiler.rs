@@ -1,14 +1,13 @@
 use crate::ast::Program;
-use crate::ast::{self, Expression, ExpressionStatement, LetStatement, ReturnStatement, Statement};
+use crate::ast::{self, Expression};
 use crate::code;
 use crate::code::{Instructions, Opcode};
 use crate::object::Object;
-use crate::parser::ExpectedLiteral;
 
 #[derive(Debug)]
 pub struct Bytecode {
-    instructions: Instructions,
-    constants: Vec<Object>,
+    pub instructions: Instructions,
+    pub constants: Vec<Object>,
 }
 
 #[derive(Debug)]
@@ -65,31 +64,39 @@ impl Compiler {
                     Ok(_) => {}
                     Err(e) => return Err(e),
                 }
+
+                match ie.operator.as_str() {
+                    "+" => {
+                        self.emit(Opcode::OpAdd, &[]);
+                        Ok(())
+                    }
+                    _ => Err(format!("unknown operator {}", ie.operator)),
+                }
             }
             Expression::Integer(ie) => {
                 let integer = Object::Integer(ie.value);
                 let const_pos = self.add_constant(integer);
                 self.emit(Opcode::OpConstant, &[const_pos]);
+                return Ok(());
             }
             _ => todo!(),
-        };
-        Ok(())
+        }
     }
 
     pub fn compile(&mut self, p: &Program) -> Result<(), String> {
         for s in &p.statements {
             match s {
-                ast::Statement::Let(ls) => {
+                ast::Statement::Let(_ls) => {
                     todo!()
                 }
-                ast::Statement::Return(rs) => {
+                ast::Statement::Return(_rs) => {
                     todo!()
                 }
                 ast::Statement::Expression(es) => match &es.expression {
-                    Some(e) => self.compile_expression(&e),
+                    Some(e) => self.compile_expression(&e)?,
                     None => todo!(),
                 },
-            };
+            }
         }
         Ok(())
     }
@@ -104,6 +111,7 @@ impl Compiler {
 
 #[cfg(test)]
 mod tests {
+    use crate::parser::ExpectedLiteral;
     use crate::{ast::Program, lexer::Lexer, parser::Parser};
 
     use super::*;
@@ -183,7 +191,7 @@ mod tests {
         let concatted = concat_instructions(expected);
         if actual.len() != concatted.len() {
             return Some(format!(
-                "wrong instructions length.\nwant={:?}\ngot={:?}",
+                "wrong instructions length.\nwant={}\ngot={}",
                 concatted, actual
             ));
         }
@@ -243,6 +251,7 @@ mod tests {
             expected_instructions: vec![
                 Instructions(code::make(&Opcode::OpConstant, &vec![0])),
                 Instructions(code::make(&Opcode::OpConstant, &vec![1])),
+                Instructions(code::make(&Opcode::OpAdd, &vec![])),
             ],
         }];
 

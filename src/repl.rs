@@ -1,6 +1,8 @@
+use crate::compiler::Compiler;
 use crate::evaluator::Evaluator;
 use crate::lexer;
 use crate::parser;
+use crate::vm::VM;
 use std::io;
 
 const PROMPT: &str = ">> ";
@@ -25,11 +27,38 @@ pub fn start() {
             continue;
         }
 
-        let mut evaluator = Evaluator::new();
-        let evaluated = evaluator.eval(program);
-        if let Some(e) = evaluated {
-            println!("{}", e);
-        };
+        let mut comp = Compiler::new();
+        let res = comp.compile(&program);
+        match res {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Compilation failed:\n{}", e);
+                continue;
+            }
+        }
+
+        let mut machine = VM::new(comp.bytecode());
+        match machine.run() {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Executing bytecode failed:\n{}", e);
+                continue;
+            }
+        }
+
+        let stack_top = machine.stack_top();
+        match stack_top {
+            Some(s) => println!("{}", s),
+            None => {
+                eprintln!("Nothing??")
+            }
+        }
+
+        // let mut evaluator = Evaluator::new();
+        // let evaluated = evaluator.eval(program);
+        // if let Some(e) = evaluated {
+        //     println!("{}", e);
+        // };
     }
 }
 

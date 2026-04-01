@@ -9,6 +9,7 @@ mod repl;
 mod token;
 mod code;
 mod compiler;
+mod vm;
 
 fn main() {
     repl::start();
